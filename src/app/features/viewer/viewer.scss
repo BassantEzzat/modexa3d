@@ -1,0 +1,619 @@
+:host {
+  --sheet-offset: calc(64px + env(safe-area-inset-bottom)); // space for the mobile bottom sheet
+
+  position: relative;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  place-items: center;
+  min-height: 0;
+  overflow: hidden;
+  padding: 1rem;
+  padding-bottom: calc(var(--sheet-offset) + 1rem);
+
+  @media (min-width: 900px) {
+    --sheet-offset: 0px;
+    padding: 2rem;
+  }
+}
+
+.grid {
+  position: absolute;
+  inset: 0;
+  background-image:
+    linear-gradient(var(--border) 1px, transparent 1px),
+    linear-gradient(90deg, var(--border) 1px, transparent 1px);
+  background-size: 48px 48px;
+  mask-image: radial-gradient(ellipse at center, #000 30%, transparent 75%);
+}
+
+.glow {
+  position: absolute;
+  width: min(80vw, 560px);
+  aspect-ratio: 1;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(var(--accent-rgb), 0.18), transparent 65%);
+  filter: blur(20px);
+}
+
+.canvas {
+  position: absolute;
+  inset: 0 0 var(--sheet-offset) 0;
+  width: 100%;
+  height: calc(100% - var(--sheet-offset));
+  opacity: 0;
+  touch-action: none;
+  transition: opacity 0.5s ease;
+  cursor: grab;
+
+  &.visible {
+    opacity: 1;
+  }
+
+  &:active {
+    cursor: grabbing;
+  }
+}
+
+.dropzone {
+  position: relative;
+  width: min(100%, 560px);
+  min-width: 0;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr); // lets the sample strip scroll instead of stretching the card
+  justify-items: center;
+  gap: 0.75rem;
+  padding: 2rem 1.25rem 1.5rem;
+  text-align: center;
+  border: 1.5px dashed rgba(var(--line-rgb), 0.28);
+  border-radius: 24px;
+  background: rgba(var(--panel-rgb), 0.6);
+  backdrop-filter: blur(8px);
+
+  h1 {
+    font-size: clamp(1.4rem, 5vw, 1.9rem);
+  }
+
+  p {
+    color: var(--muted);
+    font-size: 0.95rem;
+  }
+
+  code {
+    color: var(--accent);
+  }
+
+  .error {
+    color: var(--danger);
+  }
+
+  app-model-gallery {
+    width: 100%;
+    min-width: 0;
+  }
+
+  @media (max-width: 480px) {
+    padding: 1.5rem 0.75rem 1rem;
+  }
+}
+
+.icon {
+  width: 64px;
+  height: 64px;
+  display: grid;
+  place-items: center;
+  border-radius: 18px;
+  background: var(--surface-2);
+  color: var(--accent);
+}
+
+.divider {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  margin-top: 0.5rem;
+  color: var(--muted);
+  font-size: 0.8rem;
+
+  &::before,
+  &::after {
+    content: '';
+    flex: 1;
+    height: 1px;
+    background: var(--border);
+  }
+}
+
+.loading {
+  position: absolute;
+  inset: 0;
+  z-index: 5;
+  display: grid;
+  place-items: center;
+  background: rgba(var(--overlay-rgb), 0.5);
+  backdrop-filter: blur(2px);
+}
+
+.spinner {
+  width: 44px;
+  height: 44px;
+  border: 3px solid var(--border);
+  border-top-color: var(--accent);
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+// ---- Toolbars ----
+.toolbar {
+  position: absolute;
+  top: 0.75rem;
+  z-index: 2;
+  display: flex;
+  gap: 0.5rem;
+
+  &.start {
+    inset-inline-start: 0.75rem;
+  }
+
+  &.end {
+    inset-inline-end: 0.75rem;
+  }
+
+  .btn.icon {
+    width: 40px;
+    height: 40px;
+    min-height: 0;
+    padding: 0;
+  }
+
+  // Phones: six round buttons plus undo / redo have to fit side by side
+  @media (max-width: 400px) {
+    gap: 0.35rem;
+
+    .btn.icon {
+      width: 36px;
+      height: 36px;
+    }
+  }
+
+  @media (max-width: 380px) {
+    .btn.icon {
+      width: 32px;
+      height: 32px;
+    }
+  }
+}
+
+// Undo / redo arrows point the other way in right-to-left
+:host-context([dir='rtl']) .flip {
+  transform: scaleX(-1);
+}
+
+.btn.active {
+  border-color: var(--accent);
+  background: rgba(var(--accent-rgb), 0.16);
+  color: var(--accent);
+}
+
+.btn.rec {
+  color: var(--danger);
+  border-color: var(--danger);
+  animation: pulse 1s ease-in-out infinite;
+}
+
+@keyframes pulse {
+  50% {
+    opacity: 0.45;
+  }
+}
+
+// The topbar already has an Upload button, so on phones we save the space
+.desktop-only {
+  @media (max-width: 600px) {
+    display: none;
+  }
+}
+
+// ---- Before / after ----
+// Same box as the canvas. Always left to right, because "before" is the left side of the picture.
+.compare {
+  position: absolute;
+  inset: 0 0 var(--sheet-offset) 0;
+  z-index: 2;
+  direction: ltr;
+  pointer-events: none;
+}
+
+// A wide invisible column around the line, so it is easy to grab with a finger
+.compare-handle {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 44px;
+  margin-left: -22px;
+  display: grid;
+  place-items: center;
+  cursor: ew-resize;
+  touch-action: none;
+  pointer-events: auto;
+
+  &::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    left: 50%;
+    width: 2px;
+    margin-left: -1px;
+    background: var(--accent);
+    box-shadow: 0 0 0 1px rgba(var(--overlay-rgb), 0.35);
+  }
+
+  &:focus-visible {
+    outline: none;
+
+    .compare-knob {
+      outline: 2px solid var(--text);
+      outline-offset: 2px;
+    }
+  }
+}
+
+.compare-knob {
+  position: relative;
+  width: 38px;
+  height: 38px;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  background: var(--accent);
+  color: var(--on-accent);
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.35);
+}
+
+.compare-label {
+  position: absolute;
+  top: calc(50% + 30px);
+  padding: 0.15rem 0.6rem;
+  border-radius: 999px;
+  background: rgba(var(--panel-rgb), 0.85);
+  backdrop-filter: blur(8px);
+  color: var(--text);
+  font-size: 0.72rem;
+  font-weight: 600;
+  white-space: nowrap;
+
+  &.before {
+    right: calc(50% + 8px);
+  }
+
+  &.after {
+    left: calc(50% + 8px);
+  }
+}
+
+// ---- Hotspots (points with notes) ----
+// Same box as the canvas. Each point is placed by pixels, so it is always left to right.
+.hotspots {
+  position: absolute;
+  inset: 0 0 var(--sheet-offset) 0;
+  z-index: 2;
+  direction: ltr;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+.hotspot {
+  position: absolute;
+  width: 0;
+  height: 0;
+
+  &.active {
+    z-index: 3;
+  }
+}
+
+.pin {
+  position: absolute;
+  top: -13px;
+  left: -13px;
+  width: 26px;
+  height: 26px;
+  display: grid;
+  place-items: center;
+  padding: 0;
+  border: 2px solid var(--bg);
+  border-radius: 50%;
+  background: var(--accent);
+  color: var(--on-accent);
+  font-size: 0.72rem;
+  font-weight: 700;
+  line-height: 1;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.4);
+  pointer-events: auto;
+  transition: opacity 0.2s ease, box-shadow 0.2s ease;
+
+  // Behind the model, seen from where the camera is now
+  .occluded & {
+    opacity: 0.35;
+  }
+
+  .active & {
+    opacity: 1;
+    box-shadow:
+      0 0 0 4px rgba(var(--accent-rgb), 0.3),
+      0 2px 8px rgba(0, 0, 0, 0.4);
+  }
+}
+
+// The note. It sits above the point, or below it when the point is near the top edge.
+.bubble {
+  position: absolute;
+  bottom: 22px;
+  width: 200px; // keep in sync with BUBBLE_WIDTH in viewer.ts
+  display: grid;
+  gap: 0.4rem;
+  padding: 0.5rem;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: rgba(var(--panel-rgb), 0.95);
+  backdrop-filter: blur(12px);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
+  pointer-events: auto;
+
+  .flip-y & {
+    bottom: auto;
+    top: 22px;
+  }
+}
+
+.note {
+  width: 100%;
+  min-height: 62px;
+  padding: 0.4rem 0.55rem;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface-2);
+  color: var(--text);
+  font: inherit;
+  font-size: 0.82rem;
+  line-height: 1.4;
+  resize: none;
+
+  &::placeholder {
+    color: var(--muted);
+  }
+
+  &:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 1px;
+  }
+}
+
+.bubble-delete {
+  justify-self: end;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.2rem 0.4rem;
+  border: 0;
+  border-radius: 8px;
+  background: none;
+  color: var(--muted);
+  font-size: 0.75rem;
+
+  &:hover {
+    color: var(--danger);
+    background: rgba(var(--line-rgb), 0.06);
+  }
+}
+
+// ---- Dimensions ----
+.dims {
+  position: absolute;
+  top: 6.25rem;
+  inset-inline-start: 0.75rem;
+  z-index: 3;
+  display: grid;
+  gap: 0.6rem;
+  min-width: 176px;
+  padding: 0.75rem 0.9rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: rgba(var(--panel-rgb), 0.88);
+  backdrop-filter: blur(12px);
+}
+
+.dims-list {
+  display: grid;
+  gap: 0.2rem;
+  margin: 0;
+
+  div {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 1rem;
+  }
+
+  dt {
+    color: var(--muted);
+    font-size: 0.78rem;
+  }
+
+  dd {
+    margin: 0;
+    font-size: 0.9rem;
+    font-weight: 600;
+    font-variant-numeric: tabular-nums;
+  }
+}
+
+// ---- Screenshot menu ----
+.shot-menu {
+  position: absolute;
+  top: 3.75rem;
+  inset-inline-end: 0.75rem;
+  z-index: 4;
+  display: grid;
+  gap: 0.75rem;
+  width: min(260px, calc(100% - 1.5rem));
+  padding: 1rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: rgba(var(--panel-rgb), 0.92);
+  backdrop-filter: blur(12px);
+}
+
+.shot-title {
+  color: var(--muted);
+  font-size: 0.75rem;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+
+  // letter-spacing breaks the joined letters of Arabic
+  :host-context([dir='rtl']) & {
+    letter-spacing: 0;
+  }
+}
+
+.chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.chip {
+  min-height: 34px;
+  padding: 0 0.85rem;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--surface-2);
+  font-size: 0.82rem;
+  transition: border-color 0.15s ease, background 0.15s ease;
+
+  &.small {
+    min-height: 28px;
+    padding: 0 0.7rem;
+    font-size: 0.75rem;
+  }
+
+  &.active {
+    border-color: var(--accent);
+    background: rgba(var(--accent-rgb), 0.14);
+    color: var(--accent);
+  }
+}
+
+.check {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  font-size: 0.85rem;
+  cursor: pointer;
+
+  input {
+    width: 18px;
+    height: 18px;
+    accent-color: var(--accent);
+  }
+}
+
+.save {
+  width: 100%;
+}
+
+// ---- Overlays ----
+.credit {
+  position: absolute;
+  top: 4.5rem; // below the undo/redo buttons
+  inset-inline: 0.9rem;
+  z-index: 2;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--muted);
+  font-size: 0.72rem;
+  pointer-events: none;
+}
+
+.toast {
+  position: absolute;
+  top: 6.25rem;
+  left: 50%;
+  z-index: 4;
+  width: max-content;
+  max-width: calc(100% - 2rem);
+  transform: translateX(-50%);
+  padding: 0.5rem 1rem;
+  border-radius: 12px;
+  background: rgba(120, 30, 30, 0.92);
+  color: #fff;
+  font-size: 0.85rem;
+}
+
+.toast.info {
+  background: rgba(var(--accent-rgb), 0.95);
+  color: var(--on-accent);
+  font-weight: 500;
+}
+
+.hint {
+  position: absolute;
+  left: 50%;
+  bottom: calc(var(--sheet-offset) + 5.25rem);
+  transform: translateX(-50%);
+  z-index: 2;
+  width: max-content;
+  max-width: calc(100% - 2rem);
+  padding: 0.4rem 0.9rem;
+  border-radius: 999px;
+  background: rgba(var(--panel-rgb), 0.75);
+  backdrop-filter: blur(8px);
+  color: var(--muted);
+  font-size: 0.8rem;
+  text-align: center;
+  pointer-events: none;
+
+  // "Add a point" mode is on
+  &.accent {
+    background: rgba(var(--accent-rgb), 0.95);
+    color: var(--on-accent);
+    font-weight: 500;
+  }
+}
+
+.strip {
+  position: absolute;
+  inset-inline: 0;
+  bottom: calc(var(--sheet-offset) + 0.75rem);
+  z-index: 2;
+  padding-inline: 0.5rem;
+}
+
+.drop-overlay {
+  position: absolute;
+  inset: 0.75rem;
+  z-index: 6;
+  display: grid;
+  place-items: center;
+  border: 2px dashed var(--accent);
+  border-radius: 24px;
+  background: rgba(var(--overlay-rgb), 0.94);
+  pointer-events: none;
+
+  p {
+    padding: 0 1rem;
+    text-align: center;
+    font-family: var(--font-display);
+    font-size: clamp(1.15rem, 4vw, 1.6rem);
+    font-weight: 600;
+    color: var(--text);
+  }
+}

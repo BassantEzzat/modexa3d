@@ -1,0 +1,483 @@
+<div class="grid" aria-hidden="true"></div>
+<div class="glow" aria-hidden="true"></div>
+
+<canvas
+  #canvas
+  class="canvas"
+  [class.visible]="store.hasModel()"
+  [attr.aria-label]="i18n.t('viewer.canvas')"
+  (pointerdown)="onCanvasDown($event)"
+  (pointerup)="onCanvasUp($event)"
+  (pointermove)="onCanvasMove($event)"
+  (pointerleave)="onCanvasLeave()"
+></canvas>
+
+@if (store.hasModel()) {
+  @if (store.compare()) {
+    <div class="compare">
+      <div
+        class="compare-handle"
+        role="slider"
+        tabindex="0"
+        [style.left.%]="store.comparePosition() * 100"
+        [attr.aria-label]="i18n.t('compare.handle')"
+        aria-valuemin="0"
+        aria-valuemax="100"
+        [attr.aria-valuenow]="(store.comparePosition() * 100).toFixed(0)"
+        (pointerdown)="onCompareDown($event)"
+        (pointermove)="onCompareMove($event)"
+        (keydown)="onCompareKey($event)"
+      >
+        <span class="compare-label before">{{ i18n.t('compare.before') }}</span>
+        <span class="compare-knob" aria-hidden="true">
+          <svg
+            viewBox="0 0 24 24"
+            width="18"
+            height="18"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+          >
+            <path d="m9 7-5 5 5 5" />
+            <path d="m15 7 5 5-5 5" />
+          </svg>
+        </span>
+        <span class="compare-label after">{{ i18n.t('compare.after') }}</span>
+      </div>
+    </div>
+  }
+
+  <div class="hotspots">
+    @for (spot of store.hotspotView().items; track spot.id) {
+      <div
+        class="hotspot"
+        [class.active]="store.activeHotspot() === spot.id"
+        [class.occluded]="spot.occluded"
+        [class.flip-y]="spot.y < 150"
+        [style.left.px]="spot.x"
+        [style.top.px]="spot.y"
+      >
+        <button
+          class="pin"
+          type="button"
+          [attr.aria-label]="i18n.t('hotspot.pin', { n: spot.number })"
+          [attr.aria-expanded]="store.activeHotspot() === spot.id"
+          (click)="store.selectHotspot(store.activeHotspot() === spot.id ? null : spot.id)"
+        >
+          {{ spot.number }}
+        </button>
+
+        @if (store.activeHotspot() === spot.id) {
+          <div
+            class="bubble"
+            role="group"
+            [attr.aria-label]="i18n.t('hotspot.pin', { n: spot.number })"
+            [style.left.px]="-100 + bubbleShift(spot.x)"
+          >
+            <textarea
+              class="note"
+              rows="3"
+              maxlength="140"
+              dir="auto"
+              [value]="store.hotspotText(spot.id)"
+              [placeholder]="i18n.t('hotspot.placeholder')"
+              [attr.aria-label]="i18n.t('hotspot.note')"
+              (input)="store.setHotspotText(spot.id, $any($event.target).value)"
+              (change)="store.commitSceneEdit()"
+              (keydown.enter)="onNoteEnter($event)"
+            ></textarea>
+            <button
+              class="bubble-delete"
+              type="button"
+              [attr.aria-label]="i18n.t('hotspot.deleteAria', { n: spot.number })"
+              (click)="store.deleteHotspot(spot.id)"
+            >
+              <svg
+                viewBox="0 0 24 24"
+                width="14"
+                height="14"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                aria-hidden="true"
+              >
+                <path d="M3 6h18M8 6V4h8v2M19 6l-1 14H6L5 6M10 11v6M14 11v6" />
+              </svg>
+              {{ i18n.t('hotspot.delete') }}
+            </button>
+          </div>
+        }
+      </div>
+    }
+  </div>
+
+  <div class="toolbar start">
+    <button
+      class="btn icon"
+      type="button"
+      [attr.aria-label]="i18n.t('viewer.undo')"
+      [title]="i18n.t('viewer.undoTitle')"
+      [disabled]="!store.canUndo()"
+      (click)="store.undo()"
+    >
+      <svg
+        class="flip"
+        viewBox="0 0 24 24"
+        width="18"
+        height="18"
+        fill="none"
+        stroke="currentColor"
+        stroke-width="2"
+        stroke-linecap="round"
+        stroke-linejoin="round"
+        aria-hidden="true"
+      >
+        <path d="M9 14 4 9l5-5" />
+        <path d="M4 9h10.5a5.5 5.5 0 0 1 5.5 5.5 5.5 5.5 0 0 1-5.5 5.5H11" />
+      </svg>
+    </button>
+    <button
+      class="btn icon"
+      type="button"
+      [attr.aria-label]="i18n.t('viewer.redo')"
+      [title]="i18n.t('viewer.redoTitle')"
+      [disabled]="!store.canRedo()"
+      (click)="store.redo()"
+    >
+      <svg
+        class="flip"
+        viewBox="0 0 24 24"
+        width="18"
+        height="18"
+        fill="none"
+        stroke="currentColor"
+        stroke-width="2"
+        stroke-linecap="round"
+        stroke-linejoin="round"
+        aria-hidden="true"
+      >
+        <path d="m15 14 5-5-5-5" />
+        <path d="M20 9H9.5A5.5 5.5 0 0 0 4 14.5 5.5 5.5 0 0 0 9.5 20H13" />
+      </svg>
+    </button>
+  </div>
+
+  <div class="toolbar end">
+    <button
+      class="btn icon"
+      type="button"
+      [attr.aria-label]="i18n.t('viewer.hotspot')"
+      [title]="i18n.t('viewer.hotspot')"
+      [class.active]="store.hotspotMode()"
+      [attr.aria-pressed]="store.hotspotMode()"
+      (click)="store.toggleHotspotMode()"
+    >
+      <svg
+        viewBox="0 0 24 24"
+        width="18"
+        height="18"
+        fill="none"
+        stroke="currentColor"
+        stroke-width="2"
+        stroke-linecap="round"
+        stroke-linejoin="round"
+        aria-hidden="true"
+      >
+        <path d="M20 10c0 6-8 12-8 12S4 16 4 10a8 8 0 0 1 16 0Z" />
+        <circle cx="12" cy="10" r="3" />
+      </svg>
+    </button>
+    <button
+      class="btn icon"
+      type="button"
+      [attr.aria-label]="i18n.t('viewer.compare')"
+      [title]="i18n.t('viewer.compare')"
+      [class.active]="store.compare()"
+      [attr.aria-pressed]="store.compare()"
+      (click)="store.toggleCompare()"
+    >
+      <svg
+        viewBox="0 0 24 24"
+        width="18"
+        height="18"
+        fill="none"
+        stroke="currentColor"
+        stroke-width="2"
+        stroke-linecap="round"
+        stroke-linejoin="round"
+        aria-hidden="true"
+      >
+        <rect x="3" y="4" width="18" height="16" rx="2" />
+        <path d="M12 4v16" />
+        <path d="M7 12h2M15 12h2" />
+      </svg>
+    </button>
+    <button
+      class="btn icon"
+      type="button"
+      [attr.aria-label]="i18n.t('viewer.dimensions')"
+      [title]="i18n.t('viewer.dimensions')"
+      [class.active]="store.showDimensions()"
+      [attr.aria-pressed]="store.showDimensions()"
+      (click)="store.toggleDimensions()"
+    >
+      <svg
+        viewBox="0 0 24 24"
+        width="18"
+        height="18"
+        fill="none"
+        stroke="currentColor"
+        stroke-width="2"
+        stroke-linecap="round"
+        stroke-linejoin="round"
+        aria-hidden="true"
+      >
+        <path
+          d="M21.3 15.3a2.4 2.4 0 0 1 0 3.4l-2.6 2.6a2.4 2.4 0 0 1-3.4 0L2.7 8.7a2.4 2.4 0 0 1 0-3.4l2.6-2.6a2.4 2.4 0 0 1 3.4 0Z"
+        />
+        <path d="m14.5 12.5 2-2M11.5 9.5l2-2M8.5 6.5l2-2M17.5 15.5l2-2" />
+      </svg>
+    </button>
+    <button
+      class="btn icon"
+      type="button"
+      [attr.aria-label]="i18n.t('viewer.turntable')"
+      [title]="i18n.t('viewer.turntable')"
+      [class.active]="store.turntable()"
+      [attr.aria-pressed]="store.turntable()"
+      (click)="store.toggleTurntable()"
+    >
+      <svg
+        viewBox="0 0 24 24"
+        width="18"
+        height="18"
+        fill="none"
+        stroke="currentColor"
+        stroke-width="2"
+        stroke-linecap="round"
+        stroke-linejoin="round"
+        aria-hidden="true"
+      >
+        <path d="M21 12a9 9 0 1 1-3-6.7" />
+        <path d="M21 3v6h-6" />
+      </svg>
+    </button>
+    <button
+      class="btn icon"
+      type="button"
+      [attr.aria-label]="i18n.t('viewer.record')"
+      [title]="i18n.t('viewer.recordTitle')"
+      [class.rec]="store.recording()"
+      [disabled]="store.recording()"
+      (click)="store.recordTurntable()"
+    >
+      <svg
+        viewBox="0 0 24 24"
+        width="18"
+        height="18"
+        fill="none"
+        stroke="currentColor"
+        stroke-width="2"
+        stroke-linecap="round"
+        stroke-linejoin="round"
+        aria-hidden="true"
+      >
+        <path d="m16 13 5.2 3.5a.5.5 0 0 0 .8-.4V7.9a.5.5 0 0 0-.8-.4L16 11" />
+        <rect x="2" y="6" width="14" height="12" rx="2" />
+      </svg>
+    </button>
+    <button
+      class="btn icon"
+      type="button"
+      [attr.aria-label]="i18n.t('viewer.screenshot')"
+      [title]="i18n.t('viewer.screenshot')"
+      [class.active]="store.shotMenuOpen()"
+      [attr.aria-expanded]="store.shotMenuOpen()"
+      (click)="store.toggleShotMenu()"
+    >
+      <svg
+        viewBox="0 0 24 24"
+        width="18"
+        height="18"
+        fill="none"
+        stroke="currentColor"
+        stroke-width="2"
+        stroke-linecap="round"
+        stroke-linejoin="round"
+        aria-hidden="true"
+      >
+        <path
+          d="M14.5 4h-5L7 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3l-2.5-3z"
+        />
+        <circle cx="12" cy="13" r="3" />
+      </svg>
+    </button>
+    <button class="btn desktop-only" type="button" (click)="store.openFilePicker()">
+      {{ i18n.t('viewer.uploadModel') }}
+    </button>
+  </div>
+
+  @if (store.shotMenuOpen()) {
+    <div class="shot-menu" role="dialog" [attr.aria-label]="i18n.t('shot.options')">
+      <p class="shot-title">{{ i18n.t('shot.quality') }}</p>
+      <div class="chips">
+        <button
+          class="chip"
+          type="button"
+          [class.active]="store.shotScale() === 1"
+          (click)="store.shotScale.set(1)"
+        >
+          {{ i18n.t('shot.standard') }}
+        </button>
+        <button
+          class="chip"
+          type="button"
+          [class.active]="store.shotScale() === 2"
+          (click)="store.shotScale.set(2)"
+        >
+          {{ i18n.t('shot.hd') }}
+        </button>
+        <button
+          class="chip"
+          type="button"
+          [class.active]="store.shotScale() === 4"
+          (click)="store.shotScale.set(4)"
+        >
+          {{ i18n.t('shot.ultra') }}
+        </button>
+      </div>
+
+      <label class="check">
+        <input
+          type="checkbox"
+          [checked]="store.shotTransparent()"
+          (change)="store.shotTransparent.set($any($event.target).checked)"
+        />
+        <span>{{ i18n.t('shot.transparent') }}</span>
+      </label>
+
+      <button class="btn primary save" type="button" (click)="store.takeScreenshot()">
+        {{ i18n.t('shot.save') }}
+      </button>
+    </div>
+  }
+
+  @if (store.showDimensions()) {
+    @if (store.dimensions(); as size) {
+      <div class="dims" role="group" [attr.aria-label]="i18n.t('dim.title')">
+        <dl class="dims-list">
+          <div>
+            <dt>{{ i18n.t('dim.width') }}</dt>
+            <dd>
+              <bdi dir="ltr">{{ dimension(size.width) }}</bdi>
+            </dd>
+          </div>
+          <div>
+            <dt>{{ i18n.t('dim.height') }}</dt>
+            <dd>
+              <bdi dir="ltr">{{ dimension(size.height) }}</bdi>
+            </dd>
+          </div>
+          <div>
+            <dt>{{ i18n.t('dim.depth') }}</dt>
+            <dd>
+              <bdi dir="ltr">{{ dimension(size.depth) }}</bdi>
+            </dd>
+          </div>
+        </dl>
+        <div class="chips" role="group" [attr.aria-label]="i18n.t('dim.unit')">
+          @for (unit of units; track unit.id) {
+            <button
+              class="chip small"
+              type="button"
+              [class.active]="store.unit() === unit.id"
+              [attr.aria-pressed]="store.unit() === unit.id"
+              (click)="store.setUnit(unit.id)"
+            >
+              {{ i18n.t(unit.label) }}
+            </button>
+          }
+        </div>
+      </div>
+    }
+  }
+
+  @if (store.activeModel(); as model) {
+    <p class="credit" dir="ltr" [title]="model.credit">{{ model.credit }}</p>
+  }
+
+  @if (store.errorMessage()) {
+    <p class="toast" role="alert">{{ store.errorMessage() }}</p>
+  }
+
+  @if (store.infoMessage()) {
+    <p class="toast info" role="status">{{ store.infoMessage() }}</p>
+  }
+
+  <p class="hint" [class.accent]="store.hotspotMode()">
+    {{ store.hotspotMode() ? i18n.t('hotspot.hint') : i18n.t('viewer.hint') }}
+  </p>
+
+  <app-model-gallery
+    class="strip"
+    [models]="store.samples"
+    [activeId]="store.activeId()"
+    (selected)="store.selectSample($event)"
+  />
+} @else {
+  <section class="dropzone">
+    <div class="icon" aria-hidden="true">
+      <svg
+        viewBox="0 0 24 24"
+        width="32"
+        height="32"
+        fill="none"
+        stroke="currentColor"
+        stroke-width="1.6"
+        stroke-linecap="round"
+        stroke-linejoin="round"
+      >
+        <path d="M12 2 3 7v10l9 5 9-5V7l-9-5Z" />
+        <path d="m3 7 9 5 9-5M12 12v10" />
+      </svg>
+    </div>
+    <h1>{{ i18n.t('drop.title') }}</h1>
+
+    <p>
+      {{ i18n.t('drop.before') }} <bdi><code dir="ltr">GLB</code></bdi> {{ i18n.t('drop.after') }}
+    </p>
+    @if (store.errorMessage()) {
+      <p class="error" role="alert">{{ store.errorMessage() }}</p>
+    }
+
+    <button class="btn primary" type="button" (click)="store.openFilePicker()">
+      {{ i18n.t('drop.upload') }}
+    </button>
+
+    <div class="divider">
+      <span>{{ i18n.t('drop.sample') }}</span>
+    </div>
+
+    <app-model-gallery
+      [models]="store.samples"
+      [activeId]="store.activeId()"
+      (selected)="store.selectSample($event)"
+    />
+  </section>
+}
+
+@if (store.loading()) {
+  <div class="loading" role="status" [attr.aria-label]="i18n.t('viewer.loading')">
+    <div class="spinner"></div>
+  </div>
+}
+
+@if (dragging()) {
+  <div class="drop-overlay" aria-hidden="true">
+    <p>{{ i18n.t('drop.overlay') }}</p>
+  </div>
+}

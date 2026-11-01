@@ -1,0 +1,23 @@
+.shell {
+  height: 100dvh;
+  display: grid;
+  grid-template-rows: var(--topbar-h) minmax(0, 1fr);
+}
+
+.workspace {
+  position: relative;
+  min-height: 0;
+  overflow: hidden;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  grid-template-rows: minmax(0, 1fr); // keeps the row inside the screen, the panel scrolls instead
+
+  @media (min-width: 900px) {
+    grid-template-columns: minmax(0, 1fr) 360px;
+  }
+}
+
+app-viewer,
+app-customizer {
+  min-height: 0;
+}

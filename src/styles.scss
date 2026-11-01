@@ -1,1 +1,180 @@
-/* You can add global styles to this file, and also import other style files */
+:root {
+  --radius: 16px;
+  --radius-sm: 10px;
+  --topbar-h: 60px;
+
+  --font-display: 'Outfit', system-ui, sans-serif;
+  --font-body: 'Inter', system-ui, sans-serif;
+
+  // ---- Dark theme (default) ----
+  color-scheme: dark;
+
+  --bg: #0e0c0b;
+  --surface: #171412;
+  --surface-2: #211d1a;
+  --border: rgba(255, 255, 255, 0.09);
+  --text: #f5f0ea;
+  --muted: #a69d93;
+
+  --accent: #d8c3a5; // soft beige
+  --accent-rgb: 216, 195, 165;
+  --accent-strong: #b99c76; // deeper beige for gradients
+  --on-accent: #1a1613; // text on top of the accent color
+  --danger: #ff8a80;
+
+  // Used to build transparent versions of the theme colors
+  --overlay-rgb: 14, 12, 11; // same hue as --bg
+  --panel-rgb: 23, 20, 18; // same hue as --surface
+  --line-rgb: 255, 255, 255; // lines and highlights
+}
+
+:root[data-theme='light'] {
+  color-scheme: light;
+
+  --bg: #f6f1ea;
+  --surface: #fffaf3;
+  --surface-2: #efe7db;
+  --border: rgba(60, 45, 30, 0.14);
+  --text: #2a231d;
+  --muted: #7a6e62;
+
+  --accent: #8f6d45; // deeper beige so it stays readable on light
+  --accent-rgb: 143, 109, 69;
+  --accent-strong: #755632;
+  --on-accent: #fffaf3;
+  --danger: #c0392b;
+
+  --overlay-rgb: 246, 241, 234;
+  --panel-rgb: 255, 250, 243;
+  --line-rgb: 60, 45, 30;
+}
+
+// Arabic uses a font that supports it well
+:root[lang='ar'] {
+  --font-display: 'Cairo', 'Outfit', system-ui, sans-serif;
+  --font-body: 'Cairo', 'Inter', system-ui, sans-serif;
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  height: 100%;
+}
+
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--font-body);
+  line-height: 1.5;
+  overflow: hidden;
+  -webkit-font-smoothing: antialiased;
+  transition: background-color 0.3s ease, color 0.3s ease;
+}
+
+h1,
+h2,
+h3 {
+  font-family: var(--font-display);
+  margin: 0;
+  line-height: 1.2;
+}
+
+p {
+  margin: 0;
+}
+
+button {
+  font: inherit;
+  color: inherit;
+  cursor: pointer;
+}
+
+:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+// Shared button style
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  min-height: 40px;
+  padding: 0 1rem;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--surface-2);
+  font-weight: 500;
+  font-size: 0.9rem;
+  transition: transform 0.15s ease, border-color 0.15s ease, filter 0.15s ease;
+
+  &:hover {
+    border-color: rgba(var(--line-rgb), 0.3);
+  }
+
+  &:active {
+    transform: scale(0.97);
+  }
+
+  &.primary {
+    background: linear-gradient(135deg, var(--accent), var(--accent-strong));
+    border-color: transparent;
+    color: var(--on-accent);
+    font-weight: 600;
+
+    &:hover {
+      filter: brightness(1.08);
+    }
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    transition-duration: 0.01ms !important;
+    animation-duration: 0.01ms !important;
+  }
+}
+
+.btn.icon {
+  width: 40px;
+  padding: 0;
+}
+
+.btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+
+  &:hover {
+    border-color: var(--border);
+  }
+
+  &:active {
+    transform: none;
+  }
+}
+
+
+
+// Animated cursor (see the Cursor component). The class is added to <html> only once the
+// cursor is running, so on touch screens, or if something fails, the normal cursor stays.
+// Paste this at the end of your global styles file (src/styles.scss) and DELETE the old
+// "Custom mouse cursors" block (the --cursor-* variables) if you pasted it before.
+html.custom-cursor,
+html.custom-cursor * {
+  cursor: none !important;
+}
+
+// Over text fields the normal I-beam is shown instead (the ring hides itself there)
+html.custom-cursor input[type='text'],
+html.custom-cursor textarea {
+  cursor: text !important;
+}

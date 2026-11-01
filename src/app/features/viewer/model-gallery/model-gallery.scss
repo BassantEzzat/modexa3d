@@ -1,0 +1,77 @@
+:host {
+  display: block;
+}
+
+.list {
+  display: flex;
+  gap: 0.6rem;
+  margin: 0;
+  padding: 0.25rem;
+  list-style: none;
+  overflow-x: auto;
+  justify-content: safe center;
+  scroll-snap-type: x proximity;
+  scrollbar-width: none;
+
+  &::-webkit-scrollbar {
+    display: none;
+  }
+}
+
+li {
+  flex: none;
+  scroll-snap-align: center;
+}
+
+.card {
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+  min-width: 156px;
+  padding: 0.55rem 0.9rem 0.55rem 0.6rem;
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  background: rgba(var(--panel-rgb), 0.9);
+  backdrop-filter: blur(8px);
+  text-align: start;
+  transition: transform 0.15s ease, border-color 0.15s ease, background 0.15s ease;
+
+  &:hover {
+    border-color: rgba(var(--line-rgb), 0.3);
+  }
+
+  &:active {
+    transform: scale(0.97);
+  }
+
+  &.active {
+    border-color: var(--accent);
+    background: rgba(var(--accent-rgb), 0.14);
+  }
+}
+
+.icon {
+  width: 40px;
+  height: 40px;
+  display: grid;
+  place-items: center;
+  border-radius: 10px;
+  background: var(--surface-2);
+  font-size: 1.35rem;
+}
+
+.text {
+  display: grid;
+  line-height: 1.25;
+  text-align: start;
+}
+
+.name {
+  font-size: 0.9rem;
+  font-weight: 600;
+}
+
+.category {
+  font-size: 0.75rem;
+  color: var(--muted);
+}

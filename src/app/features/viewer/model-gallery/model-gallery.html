@@ -1,0 +1,19 @@
+<ul class="list">
+  @for (model of models(); track model.id) {
+    <li>
+      <button
+        type="button"
+        class="card"
+        [class.active]="model.id === activeId()"
+        [attr.aria-pressed]="model.id === activeId()"
+        (click)="selected.emit(model)"
+      >
+        <span class="icon" aria-hidden="true">{{ model.icon }}</span>
+        <span class="text">
+          <span class="name" dir="auto">{{ model.name }}</span>
+          <span class="category">{{ i18n.tryT('cat.' + model.category, model.category) }}</span>
+        </span>
+      </button>
+    </li>
+  }
+</ul>

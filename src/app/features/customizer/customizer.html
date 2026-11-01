@@ -1,0 +1,416 @@
+<button
+  class="handle"
+  type="button"
+  (click)="toggled.emit()"
+  [attr.aria-expanded]="open()"
+  aria-controls="panel-body"
+>
+  <span class="grip" aria-hidden="true"></span>
+  <span class="title">{{ i18n.t('cz.customize') }}</span>
+</button>
+
+<div class="body" id="panel-body">
+  <section>
+    <div class="section-head">
+      <h2>{{ i18n.t('cz.materials') }}</h2>
+      @if (store.materials().length) {
+        <button class="link" type="button" (click)="store.resetAllMaterials()">
+          {{ i18n.t('cz.resetAll') }}
+        </button>
+      }
+    </div>
+
+    @if (!store.hasModel()) {
+      <p class="hint">{{ i18n.t('cz.noModel') }}</p>
+    } @else if (!store.materials().length) {
+      <p class="hint">{{ i18n.t('cz.noMaterials') }}</p>
+    } @else {
+      <ul class="materials">
+        @for (material of store.materials(); track material.id) {
+          <li
+            class="material"
+            [id]="'mat-' + material.id"
+            [class.selected]="store.selectedId() === material.id"
+          >
+            <div class="row">
+              <label class="color-input" [style.background]="material.color">
+                <input
+                  type="color"
+                  [value]="material.color"
+                  [attr.aria-label]="i18n.t('cz.colorOf', { name: material.name })"
+                  (input)="onColor(material.id, $event)"
+                  (change)="store.commitEdit(material.id)"
+                />
+              </label>
+              <span class="name" dir="auto">{{ material.name }}</span>
+              <button class="link" type="button" (click)="store.resetMaterial(material.id)">
+                {{ i18n.t('cz.reset') }}
+              </button>
+            </div>
+
+            <div class="swatches">
+              @for (color of palette; track color) {
+                <button
+                  class="swatch"
+                  type="button"
+                  [style.background]="color"
+                  [attr.aria-label]="i18n.t('cz.setTo', { name: material.name, color: color })"
+                  (click)="store.quickSetColor(material.id, color)"
+                ></button>
+              }
+              <label
+                class="swatch custom"
+                [attr.title]="i18n.t('cz.customColor', { name: material.name })"
+              >
+                <input
+                  type="color"
+                  [value]="material.color"
+                  [attr.aria-label]="i18n.t('cz.customColor', { name: material.name })"
+                  (input)="onColor(material.id, $event)"
+                  (change)="store.commitEdit(material.id)"
+                />
+              </label>
+            </div>
+
+            <div class="hex-row">
+              <input
+                class="text-input hex"
+                type="text"
+                maxlength="7"
+                spellcheck="false"
+                autocomplete="off"
+                [value]="material.color"
+                [attr.aria-label]="i18n.t('cz.hex')"
+                (change)="onHex(material, $event)"
+              />
+              @if (canPickScreen) {
+                <button
+                  class="icon-btn pick"
+                  type="button"
+                  [attr.aria-label]="i18n.t('cz.pickScreen')"
+                  [title]="i18n.t('cz.pickScreen')"
+                  (click)="pickFromScreen(material.id)"
+                >
+                  <svg
+                    viewBox="0 0 24 24"
+                    width="18"
+                    height="18"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="2"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    aria-hidden="true"
+                  >
+                    <path d="m2 22 1-1h3l9-9" />
+                    <path d="M3 21v-3l9-9" />
+                    <path
+                      d="m15 6 3.4-3.4a2.1 2.1 0 1 1 3 3L18 9l.4.4a2.1 2.1 0 1 1-3 3l-3.8-3.8a2.1 2.1 0 1 1 3-3l.4.4Z"
+                    />
+                  </svg>
+                </button>
+              }
+            </div>
+
+            @if (store.recentColors().length) {
+              <div class="swatches">
+                <span class="recent-label">{{ i18n.t('cz.recent') }}</span>
+                @for (color of store.recentColors(); track color) {
+                  <button
+                    class="swatch"
+                    type="button"
+                    [style.background]="color"
+                    [attr.aria-label]="i18n.t('cz.setTo', { name: material.name, color: color })"
+                    (click)="store.quickSetColor(material.id, color)"
+                  ></button>
+                }
+              </div>
+            }
+
+            <label class="slider">
+              <span>{{ i18n.t('cz.roughness') }}</span>
+              <input
+                type="range"
+                min="0"
+                max="1"
+                step="0.01"
+                [value]="material.roughness"
+                (input)="onRoughness(material.id, $event)"
+                (change)="store.commitEdit(material.id)"
+              />
+            </label>
+
+            <label class="slider">
+              <span>{{ i18n.t('cz.metalness') }}</span>
+              <input
+                type="range"
+                min="0"
+                max="1"
+                step="0.01"
+                [value]="material.metalness"
+                (input)="onMetalness(material.id, $event)"
+                (change)="store.commitEdit(material.id)"
+              />
+            </label>
+
+            <details class="more">
+              <summary>{{ i18n.t('cz.more') }}</summary>
+              <div class="more-body">
+                <label class="slider">
+                  <span>{{ i18n.t('cz.opacity') }}</span>
+                  <input
+                    type="range"
+                    min="0"
+                    max="1"
+                    step="0.01"
+                    [value]="material.opacity"
+                    (input)="onOpacity(material.id, $event)"
+                    (change)="store.commitEdit(material.id)"
+                  />
+                </label>
+                <label class="slider">
+                  <span>{{ i18n.t('cz.glow') }}</span>
+                  <input
+                    type="range"
+                    min="0"
+                    max="1"
+                    step="0.01"
+                    [value]="material.glow"
+                    (input)="onGlow(material.id, $event)"
+                    (change)="store.commitEdit(material.id)"
+                  />
+                </label>
+                <label class="slider">
+                  <span>{{ i18n.t('cz.clearcoat') }}</span>
+                  <input
+                    type="range"
+                    min="0"
+                    max="1"
+                    step="0.01"
+                    [value]="material.clearcoat"
+                    (input)="onClearcoat(material.id, $event)"
+                    (change)="store.commitEdit(material.id)"
+                  />
+                </label>
+              </div>
+            </details>
+          </li>
+        }
+      </ul>
+    }
+  </section>
+
+  @if (store.parts().length > 1) {
+    <section>
+      <div class="section-head">
+        <h2>{{ i18n.t('cz.parts') }}</h2>
+        @if (store.hiddenCount()) {
+          <button class="link" type="button" (click)="store.showAllParts()">
+            {{ i18n.t('cz.showAll') }} · {{ i18n.t('cz.hiddenCount', { n: store.hiddenCount() }) }}
+          </button>
+        }
+      </div>
+      <ul class="parts">
+        @for (part of store.parts(); track part.index) {
+          <li class="part" [class.off]="!part.visible">
+            <span class="name" dir="auto">{{ part.name }}</span>
+            <button
+              class="icon-btn"
+              type="button"
+              [attr.aria-pressed]="part.visible"
+              [attr.aria-label]="
+                i18n.t(part.visible ? 'cz.hidePart' : 'cz.showPart', { name: part.name })
+              "
+              [title]="i18n.t(part.visible ? 'cz.hidePart' : 'cz.showPart', { name: part.name })"
+              (click)="store.togglePart(part.index)"
+            >
+              @if (part.visible) {
+                <svg
+                  viewBox="0 0 24 24"
+                  width="18"
+                  height="18"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="2"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  aria-hidden="true"
+                >
+                  <path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7S2 12 2 12Z" />
+                  <circle cx="12" cy="12" r="3" />
+                </svg>
+              } @else {
+                <svg
+                  viewBox="0 0 24 24"
+                  width="18"
+                  height="18"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="2"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  aria-hidden="true"
+                >
+                  <path
+                    d="M17.9 17.9A10.1 10.1 0 0 1 12 19c-6.4 0-10-7-10-7a17.5 17.5 0 0 1 4.1-5M9.9 5.2A9.7 9.7 0 0 1 12 5c6.4 0 10 7 10 7a17.6 17.6 0 0 1-2.2 3.2M14.1 14.1a3 3 0 1 1-4.2-4.2M2 2l20 20"
+                  />
+                </svg>
+              }
+            </button>
+          </li>
+        }
+      </ul>
+    </section>
+  }
+
+  <section>
+    <h2>{{ i18n.t('cz.lighting') }}</h2>
+    <div class="chips">
+      @for (light of lights; track light.id) {
+        <button
+          class="chip"
+          type="button"
+          [class.active]="store.lighting() === light.id"
+          [attr.aria-pressed]="store.lighting() === light.id"
+          (click)="store.setLighting(light.id)"
+        >
+          {{ i18n.t(light.label) }}
+        </button>
+      }
+    </div>
+
+    <div class="scene-sliders">
+      <label class="slider">
+        <span>{{ i18n.t('cz.lightIntensity') }}</span>
+        <input
+          type="range"
+          min="0.2"
+          max="2.5"
+          step="0.05"
+          [value]="store.lightIntensity()"
+          (input)="onIntensity($event)"
+          (change)="store.commitSceneEdit()"
+        />
+      </label>
+      <label class="slider">
+        <span>{{ i18n.t('cz.lightAngle') }}</span>
+        <input
+          type="range"
+          min="-180"
+          max="180"
+          step="1"
+          [value]="store.lightAngle()"
+          (input)="onAngle($event)"
+          (change)="store.commitSceneEdit()"
+        />
+      </label>
+    </div>
+  </section>
+
+  <section>
+    <div class="section-head">
+      <h2>{{ i18n.t('cz.scene') }}</h2>
+      <button class="link" type="button" (click)="store.resetScene()">
+        {{ i18n.t('cz.resetScene') }}
+      </button>
+    </div>
+    <div class="swatches">
+      <button
+        class="chip"
+        type="button"
+        [class.active]="store.background() === null"
+        [attr.aria-pressed]="store.background() === null"
+        (click)="store.quickSetBackground(null)"
+      >
+        {{ i18n.t('cz.bgDefault') }}
+      </button>
+      @for (color of bgPalette; track color) {
+        <button
+          class="swatch"
+          type="button"
+          [style.background]="color"
+          [attr.aria-label]="i18n.t('cz.bgColor') + ' ' + color"
+          (click)="store.quickSetBackground(color)"
+        ></button>
+      }
+      <label class="swatch custom" [attr.title]="i18n.t('cz.bgCustom')">
+        <input
+          type="color"
+          [value]="store.background() ?? '#0e0c0b'"
+          [attr.aria-label]="i18n.t('cz.bgCustom')"
+          (input)="onBackground($event)"
+          (change)="store.commitSceneEdit()"
+        />
+      </label>
+    </div>
+  </section>
+
+  <section>
+    <h2>{{ i18n.t('cz.designs') }}</h2>
+
+    <div class="save-row">
+      <input
+        #designName
+        class="text-input"
+        type="text"
+        maxlength="40"
+        dir="auto"
+        [placeholder]="i18n.t('cz.designName')"
+        [attr.aria-label]="i18n.t('cz.designName')"
+        [disabled]="!store.canSaveDesign()"
+        (keydown.enter)="saveDesign(designName)"
+      />
+      <button
+        class="btn primary compact"
+        type="button"
+        [disabled]="!store.canSaveDesign()"
+        (click)="saveDesign(designName)"
+      >
+        {{ i18n.t('cz.saveDesign') }}
+      </button>
+    </div>
+
+    @if (!store.designs().length) {
+      <p class="hint">{{ i18n.t('cz.noDesigns') }}</p>
+    } @else {
+      <ul class="designs">
+        @for (design of store.designs(); track design.id) {
+          <li class="design">
+            <button
+              class="design-main"
+              type="button"
+              [attr.aria-label]="i18n.t('cz.loadDesign', { name: design.name })"
+              (click)="store.loadDesign(design.id)"
+            >
+              <span class="design-name" dir="auto">{{ design.name }}</span>
+              <span class="design-meta"
+                >{{ modelLabel(design) }} · {{ formatDate(design.savedAt) }}</span
+              >
+            </button>
+            <button
+              class="icon-btn"
+              type="button"
+              [attr.aria-label]="i18n.t('cz.deleteDesign', { name: design.name })"
+              [title]="i18n.t('cz.deleteDesign', { name: design.name })"
+              (click)="store.deleteDesign(design.id)"
+            >
+              <svg
+                viewBox="0 0 24 24"
+                width="16"
+                height="16"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+                aria-hidden="true"
+              >
+                <path d="M3 6h18M8 6V4h8v2M19 6l-1 14H6L5 6M10 11v6M14 11v6" />
+              </svg>
+            </button>
+          </li>
+        }
+      </ul>
+    }
+  </section>
+</div>
