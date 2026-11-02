@@ -3,12 +3,16 @@ import { SAMPLE_MODELS, SampleModel } from '../models/sample-models';
 import { I18n, TextKey } from '../i18n/i18n';
 import { ModelDb } from '../storage/model-db';
 import {
+  AnimationInfo,
+  AnimationState,
   HotspotFrame,
+  HotspotPoint,
   LIGHT_ANGLE_RANGE,
   LIGHT_INTENSITY_RANGE,
   LightingPreset,
   MaterialChanges,
   MaterialInfo,
+  MeasureFrame,
   ModelSize,
   PartInfo,
   SceneManager,
@@ -18,6 +22,7 @@ const MAX_FILE_SIZE = 50 * 1024 * 1024; // 50 MB
 const MAX_HISTORY = 100;
 const MAX_DESIGNS = 30;
 const MAX_HOTSPOTS = 30;
+const MAX_MEASUREMENTS = 10;
 const MAX_NOTE = 140; // characters in one note
 const RECORDING_MS = 6000;
 
@@ -73,6 +78,13 @@ export interface Hotspot {
   y: number;
   z: number;
   t: string; // the note
+}
+
+/** A distance between two points of the model. `b` is null until the second point is placed. */
+export interface Measurement {
+  id: string;
+  a: HotspotPoint;
+  b: HotspotPoint | null;
 }
 
 /** The look of the scene around the model. Saved with each design. */
@@ -195,6 +207,8 @@ export class ModelStore {
   readonly materials = signal<MaterialInfo[]>([]);
   /** The material the user tapped in the 3D view. */
   readonly selectedId = signal<string | null>(null);
+  /** Goes up by one every time a tap on the 3D view lands on a part of the model. */
+  readonly pickTick = signal(0);
   /** The mouse is over a part of the model that can be tapped. The cursor reads this. */
   readonly hoveringPart = signal(false);
   readonly lighting = signal<LightingPreset>('studio');
@@ -227,6 +241,23 @@ export class ModelStore {
   /** Where every hotspot is on the screen right now. */
   readonly hotspotView = signal<HotspotFrame>({ width: 0, height: 0, items: [] });
 
+  // Measuring a distance between two points
+  /** "Measure" mode: two taps on the model give the distance between them. */
+  readonly measureMode = signal(false);
+  readonly measurements = signal<Measurement[]>([]);
+  /** Where every measurement is on the screen right now. */
+  readonly measureView = signal<MeasureFrame>({ width: 0, height: 0, items: [] });
+  /** The first point of a measurement is placed, the second is still missing. */
+  readonly measurePending = computed(() => {
+    const last = this.measurements().at(-1);
+    return last !== undefined && last.b === null;
+  });
+
+  // Animations that came inside the file
+  readonly animations = signal<AnimationInfo[]>([]);
+  /** State of the animation bar, or null when the model does not move. */
+  readonly animation = signal<AnimationState | null>(null);
+
   // Turntable, screenshot and video
   readonly turntable = signal(false);
   readonly recording = signal(false);
@@ -255,6 +286,12 @@ export class ModelStore {
     this.scene.setComparePosition(this.comparePosition());
     this.scene.setDimensionsVisible(this.showDimensions());
     this.scene.setHotspotListener((frame) => this.hotspotView.set(frame));
+    this.scene.setMeasureListener((frame) => this.measureView.set(frame));
+    this.scene.setAnimationListener((state) => {
+      this.animation.set(state);
+      // The size of a moving model changes with its pose
+      if (state && this.showDimensions()) this.refreshDimensions();
+    });
   }
 
   detach(): void {
@@ -407,7 +444,10 @@ export class ModelStore {
   /** A tap on the 3D view: selects the material under it, or nothing when it hit empty space. */
   pickAt(clientX: number, clientY: number): void {
     if (!this.hasModel()) return;
-    this.selectedId.set(this.scene.pick(clientX, clientY));
+    const id = this.scene.pick(clientX, clientY);
+    this.selectedId.set(id);
+    // Lets the page open the customize panel even when the same part was tapped again
+    if (id) this.pickTick.update((n) => n + 1);
   }
 
   setLighting(preset: LightingPreset): void {
@@ -540,6 +580,7 @@ export class ModelStore {
   /** Turns "add a point" mode on or off. While it is on, the next tap on the model places a point. */
   toggleHotspotMode(): void {
     if (!this.hasModel()) return;
+    this.stopMeasuring();
     this.selectHotspot(null);
     this.hotspotMode.update((on) => !on);
   }
@@ -596,6 +637,86 @@ export class ModelStore {
     this.commitSceneEdit();
   }
 
+  // ---- Measuring ----------------------------------------------------------
+
+  /** Turns "measure" mode on or off. While it is on, two taps on the model give the distance between them. */
+  toggleMeasureMode(): void {
+    if (!this.hasModel()) return;
+    if (this.measureMode()) {
+      this.stopMeasuring();
+      return;
+    }
+    this.hotspotMode.set(false);
+    this.selectHotspot(null);
+    this.measureMode.set(true);
+  }
+
+  /** Leaves measure mode. A measurement that only has its first point is dropped. */
+  stopMeasuring(): void {
+    this.measureMode.set(false);
+    if (this.measurePending()) {
+      this.measurements.update((list) => list.slice(0, -1));
+      this.scene.setMeasurements(this.measurements());
+    }
+  }
+
+  /** A tap in measure mode: the first tap places point A, the second places point B and shows the distance. */
+  addMeasurePointAt(clientX: number, clientY: number): void {
+    if (!this.hasModel()) return;
+
+    const list = this.measurements();
+    const last = list.at(-1);
+    const waitingForSecond = last !== undefined && last.b === null;
+
+    if (!waitingForSecond && list.length >= MAX_MEASUREMENTS) {
+      this.measureMode.set(false);
+      this.showError(this.i18n.t('msg.measureLimit', { n: MAX_MEASUREMENTS }));
+      return;
+    }
+
+    const point = this.scene.pointOnModel(clientX, clientY);
+    if (!point) return; // the tap missed the model: stay in measure mode
+
+    if (waitingForSecond && last) {
+      this.measurements.set([...list.slice(0, -1), { ...last, b: point }]);
+    } else {
+      const id = `${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`;
+      this.measurements.set([...list, { id, a: point, b: null }]);
+    }
+    this.scene.setMeasurements(this.measurements());
+  }
+
+  clearMeasurements(): void {
+    this.measurements.set([]);
+    this.scene.setMeasurements([]);
+  }
+
+  // ---- Animations ---------------------------------------------------------
+
+  selectAnimation(index: number): void {
+    this.scene.selectAnimation(index);
+  }
+
+  toggleAnimation(): void {
+    const state = this.animation();
+    if (state) this.scene.setAnimationPlaying(!state.playing);
+  }
+
+  /** Dragging the timeline pauses the animation, so the slider and the playback do not fight each other. */
+  seekAnimation(seconds: number): void {
+    this.scene.setAnimationPlaying(false);
+    this.scene.seekAnimation(seconds);
+  }
+
+  setAnimationSpeed(speed: number): void {
+    this.scene.setAnimationSpeed(speed);
+  }
+
+  toggleAnimationLoop(): void {
+    const state = this.animation();
+    if (state) this.scene.setAnimationLoop(!state.loop);
+  }
+
   // ---- Before / after and dimensions --------------------------------------
 
   /** Splits the view: the original file on the left, the edited model on the right. */
@@ -624,7 +745,7 @@ export class ModelStore {
     this.unit.set(unit);
   }
 
-  /** Measures the visible parts again (after loading, or after a part was shown or hidden). */
+  /** Measures the visible parts again (after loading, after a part was shown or hidden, or while a model moves). */
   private refreshDimensions(): void {
     this.dimensions.set(this.scene.updateDimensions());
   }
@@ -1051,11 +1172,17 @@ export class ModelStore {
         this.materials.set(this.scene.getMaterials());
         this.parts.set(this.scene.getParts());
 
-        // Points and notes belong to the previous model
+        // Points, notes and measurements belong to the previous model
         this.hotspots.set([]);
         this.scene.setHotspots([]);
         this.activeHotspot.set(null);
         this.hotspotMode.set(false);
+        this.measurements.set([]);
+        this.scene.setMeasurements([]);
+        this.measureMode.set(false);
+
+        // The animations of the new file (the bar itself is updated by the scene)
+        this.animations.set(this.scene.getAnimations());
 
         this.applySharedDesign();
         this.refreshDimensions();

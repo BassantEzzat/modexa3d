@@ -17,12 +17,13 @@ export const SAMPLE_MODELS: readonly SampleModel[] = [
     credit: '"SheenChair" by Wayfair, via Khronos glTF Sample Assets (CC BY 4.0)',
   },
   {
-    id: 'sofa',
-    name: 'Glam Sofa',
-    category: 'Furniture',
-    icon: '🛋️',
-    url: 'models/sofa.glb',
-    credit: '"GlamVelvetSofa" by Wayfair, via Khronos glTF Sample Assets (CC BY 4.0)',
+    // Replaces the sofa. Put the truck file next to the other models as models/truck.glb
+    id: 'truck',
+    name: 'Milk Truck',
+    category: 'Vehicles',
+    icon: '🚚',
+    url: 'models/truck.glb',
+    credit: '"CesiumMilkTruck" by Cesium, via Khronos glTF Sample Assets (CC BY 4.0)',
   },
   {
     id: 'sunglasses',

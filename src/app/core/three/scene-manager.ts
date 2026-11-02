@@ -1,11 +1,16 @@
 import {
   ACESFilmicToneMapping,
+  AnimationAction,
+  AnimationClip,
+  AnimationMixer,
   Box3,
   Box3Helper,
   Clock,
   Color,
   DirectionalLight,
   LineBasicMaterial,
+  LoopOnce,
+  LoopRepeat,
   Material,
   Mesh,
   MeshPhysicalMaterial,
@@ -77,8 +82,47 @@ export interface HotspotFrame {
   readonly items: HotspotScreen[];
 }
 
+/** One end of a measurement, on the screen. */
+export interface MeasureScreenPoint {
+  readonly x: number;
+  readonly y: number;
+  readonly occluded: boolean;
+}
+
+/** One measurement on the screen. `b` is null while the second point has not been placed yet. */
+export interface MeasureScreenItem {
+  readonly id: string;
+  readonly a: MeasureScreenPoint;
+  readonly b: MeasureScreenPoint | null;
+  readonly meters: number; // distance between the two points (0 while `b` is null)
+}
+
+export interface MeasureFrame {
+  readonly width: number;
+  readonly height: number;
+  readonly items: MeasureScreenItem[];
+}
+
+/** One animation that came inside the .glb file. */
+export interface AnimationInfo {
+  readonly index: number;
+  readonly name: string; // empty when the file gave it no name
+  readonly duration: number; // seconds
+}
+
+/** What the animation bar needs to draw itself. */
+export interface AnimationState {
+  readonly index: number;
+  readonly time: number; // seconds
+  readonly duration: number;
+  readonly playing: boolean;
+  readonly speed: number;
+  readonly loop: boolean;
+}
+
 export const LIGHT_INTENSITY_RANGE = { min: 0.2, max: 2.5 } as const;
 export const LIGHT_ANGLE_RANGE = { min: -180, max: 180 } as const; // degrees
+export const ANIMATION_SPEED_RANGE = { min: 0.1, max: 3 } as const;
 
 export type MaterialChanges = Partial<
   Pick<MaterialInfo, 'color' | 'roughness' | 'metalness' | 'opacity' | 'glow' | 'clearcoat'>
@@ -96,9 +140,16 @@ interface MaterialEntry {
   original: Required<MaterialChanges>;
 }
 
+interface MeasureItem {
+  id: string;
+  a: HotspotPoint;
+  b: HotspotPoint | null;
+}
+
 const MAX_CAPTURE_SIZE = 4096; // longest side of a screenshot, in pixels
 const BACKGROUND = '#0e0c0b';
 const OCCLUSION_INTERVAL_MS = 120; // checking what hides a hotspot is costly, so not on every frame
+const MAX_ANIMATION_STEP = 0.1; // seconds. A long pause (hidden tab) must not make the animation jump
 
 // The edited model lives on layer 0, the untouched copy ("before") on layer 1
 const AFTER_LAYER = 0;
@@ -154,6 +205,27 @@ export class SceneManager {
   private hotspotKey = '';
   private readonly occlusion = new Map<string, boolean>();
   private occlusionAt = 0;
+
+  // Measurements (two points and the distance between them)
+  private measureItems: MeasureItem[] = [];
+  private measureListener?: (frame: MeasureFrame) => void;
+  private measureKey = '';
+  private readonly measureOcclusion = new Map<string, boolean>();
+  private measureOcclusionAt = 0;
+
+  // Animations that came inside the file. The "before" copy has its own mixer, kept in step with the real one.
+  private clips: AnimationClip[] = [];
+  private mixer: AnimationMixer | null = null;
+  private beforeMixer: AnimationMixer | null = null;
+  private action: AnimationAction | null = null;
+  private beforeAction: AnimationAction | null = null;
+  private animIndex = 0;
+  private animPlaying = false;
+  private animSpeed = 1;
+  private animLoop = true;
+  private animationListener?: (state: AnimationState | null) => void;
+  private animationKey = '';
+
   private frameId = 0;
   private loadId = 0;
 
@@ -212,9 +284,13 @@ export class SceneManager {
     const tick = () => {
       this.frameId = requestAnimationFrame(tick);
       // Passing the elapsed time makes auto-rotation the same speed on any screen refresh rate
-      controls.update(this.clock.getDelta());
+      const delta = this.clock.getDelta();
+      controls.update(delta);
+      this.advanceAnimation(delta);
       this.renderFrame();
       this.updateHotspots();
+      this.updateMeasurements();
+      this.updateAnimationState();
     };
     tick();
   }
@@ -244,6 +320,8 @@ export class SceneManager {
     // The "before" copy is taken now, so it is the file exactly as it came
     this.beforeModel = this.makeBeforeModel(gltf.scene);
     this.scene.add(this.beforeModel);
+
+    this.setupAnimations(gltf.animations);
     return true;
   }
 
@@ -318,6 +396,169 @@ export class SceneManager {
     return { width: size.x, height: size.y, depth: size.z };
   }
 
+  // ---- Animations ---------------------------------------------------------
+
+  /** The animations of the loaded file (empty for a model that does not move). */
+  getAnimations(): AnimationInfo[] {
+    return this.clips.map((clip, index) => ({
+      index,
+      name: this.cleanName(clip.name),
+      duration: clip.duration,
+    }));
+  }
+
+  /** The page gets the state of the animation bar whenever it changes (null when the model has none). */
+  setAnimationListener(listener: (state: AnimationState | null) => void): void {
+    this.animationListener = listener;
+    this.animationKey = '';
+  }
+
+  /** Switches to another animation of the file and starts it from the beginning. */
+  selectAnimation(index: number, play = true): void {
+    const clip = this.clips[index];
+    if (!clip || !this.mixer) return;
+
+    this.mixer.stopAllAction();
+    this.beforeMixer?.stopAllAction();
+    this.action = this.mixer.clipAction(clip);
+    this.beforeAction = this.beforeMixer?.clipAction(clip) ?? null;
+
+    for (const action of [this.action, this.beforeAction]) {
+      if (!action) continue;
+      action.setLoop(this.animLoop ? LoopRepeat : LoopOnce, this.animLoop ? Infinity : 1);
+      action.clampWhenFinished = true; // a non-repeating animation stays on its last frame
+      action.reset();
+      action.play();
+      action.paused = !play;
+    }
+
+    this.animIndex = index;
+    this.animPlaying = play;
+    this.mixer.timeScale = this.animSpeed;
+    if (this.beforeMixer) this.beforeMixer.timeScale = this.animSpeed;
+    this.mixer.update(0);
+    this.beforeMixer?.update(0);
+    this.animationKey = '';
+  }
+
+  setAnimationPlaying(playing: boolean): void {
+    const action = this.action;
+    const clip = this.clips[this.animIndex];
+    if (!action || !clip) return;
+
+    // A finished animation that does not repeat starts again from the beginning
+    if (playing && !this.animLoop && action.time >= clip.duration - 1e-3) this.seekAnimation(0);
+
+    this.animPlaying = playing;
+    for (const item of [action, this.beforeAction]) {
+      if (item) item.paused = !playing;
+    }
+    this.animationKey = '';
+  }
+
+  /** Jumps to a moment of the animation, in seconds. Both copies of the model (before / after) move together. */
+  seekAnimation(seconds: number): void {
+    const clip = this.clips[this.animIndex];
+    if (!clip) return;
+
+    const time = Math.min(clip.duration, Math.max(0, seconds));
+    for (const action of [this.action, this.beforeAction]) {
+      if (action) action.time = time;
+    }
+    this.mixer?.update(0);
+    this.beforeMixer?.update(0);
+    this.animationKey = '';
+  }
+
+  /** Playback speed multiplier (1 = normal). */
+  setAnimationSpeed(speed: number): void {
+    this.animSpeed = Math.min(ANIMATION_SPEED_RANGE.max, Math.max(ANIMATION_SPEED_RANGE.min, speed));
+    if (this.mixer) this.mixer.timeScale = this.animSpeed;
+    if (this.beforeMixer) this.beforeMixer.timeScale = this.animSpeed;
+    this.animationKey = '';
+  }
+
+  setAnimationLoop(loop: boolean): void {
+    this.animLoop = loop;
+    for (const action of [this.action, this.beforeAction]) {
+      if (!action) continue;
+      action.setLoop(loop ? LoopRepeat : LoopOnce, loop ? Infinity : 1);
+      action.clampWhenFinished = true;
+    }
+    this.animationKey = '';
+  }
+
+  private setupAnimations(clips: AnimationClip[]): void {
+    this.clips = clips.filter((clip) => clip.tracks.length > 0 && clip.duration > 0);
+    this.animationKey = '';
+    if (!this.clips.length || !this.model) return;
+
+    this.mixer = new AnimationMixer(this.model);
+    if (this.beforeModel) this.beforeMixer = new AnimationMixer(this.beforeModel);
+    this.animSpeed = 1;
+    this.animLoop = true;
+    this.selectAnimation(0, true);
+  }
+
+  private advanceAnimation(delta: number): void {
+    if (!this.mixer) return;
+    const step = Math.min(delta, MAX_ANIMATION_STEP);
+    this.mixer.update(step);
+    this.beforeMixer?.update(step);
+  }
+
+  /** Tells the page about the animation, only when something changed (at most about 20 times a second). */
+  private updateAnimationState(): void {
+    const listener = this.animationListener;
+    if (!listener) return;
+
+    const action = this.action;
+    const clip = this.clips[this.animIndex];
+    if (!action || !clip) {
+      if (this.animationKey !== 'none') {
+        this.animationKey = 'none';
+        listener(null);
+      }
+      return;
+    }
+
+    // A non-repeating animation pauses itself when it reaches its end
+    if (this.animPlaying && action.paused) this.animPlaying = false;
+
+    const time = Math.min(clip.duration, Math.max(0, action.time));
+    const key = `${this.animIndex}|${Math.round(time * 20)}|${this.animPlaying}|${this.animSpeed}|${this.animLoop}`;
+    if (key === this.animationKey) return;
+    this.animationKey = key;
+
+    listener({
+      index: this.animIndex,
+      time,
+      duration: clip.duration,
+      playing: this.animPlaying,
+      speed: this.animSpeed,
+      loop: this.animLoop,
+    });
+  }
+
+  private disposeAnimations(): void {
+    if (this.mixer) {
+      this.mixer.stopAllAction();
+      if (this.model) this.mixer.uncacheRoot(this.model);
+    }
+    if (this.beforeMixer) {
+      this.beforeMixer.stopAllAction();
+      if (this.beforeModel) this.beforeMixer.uncacheRoot(this.beforeModel);
+    }
+    this.mixer = null;
+    this.beforeMixer = null;
+    this.action = null;
+    this.beforeAction = null;
+    this.clips = [];
+    this.animIndex = 0;
+    this.animPlaying = false;
+    this.animationKey = '';
+  }
+
   // ---- Hotspots -----------------------------------------------------------
 
   /** The page gets the screen position of every hotspot, each time one of them moves. */
@@ -354,6 +595,25 @@ export class SceneManager {
       return { x: local.x, y: local.y, z: local.z };
     }
     return null;
+  }
+
+  // ---- Measurements -------------------------------------------------------
+
+  /** The page gets the screen position of every measurement, each time one of them moves. */
+  setMeasureListener(listener: (frame: MeasureFrame) => void): void {
+    this.measureListener = listener;
+  }
+
+  /** Replaces the measurements that follow the model. A measurement with `b` = null is waiting for its second point. */
+  setMeasurements(items: readonly { id: string; a: HotspotPoint; b: HotspotPoint | null }[]): void {
+    this.measureItems = items.map(({ id, a, b }) => ({
+      id,
+      a: { x: a.x, y: a.y, z: a.z },
+      b: b ? { x: b.x, y: b.y, z: b.z } : null,
+    }));
+    this.measureOcclusion.clear();
+    this.measureOcclusionAt = 0;
+    this.measureKey = '';
   }
 
   // ---- Parts (show / hide) ------------------------------------------------
@@ -478,7 +738,8 @@ export class SceneManager {
 
   /**
    * Writes the model as it looks now (colors, materials, hidden parts left out) to a .glb.
-   * The lights, the background and the hotspots are not part of a model file, so they are not saved in it.
+   * Animations of the file are kept in it. The lights, the background, the hotspots and the
+   * measurements are not part of a model file, so they are not saved in it.
    */
   async exportGlb(): Promise<Blob> {
     const model = this.model;
@@ -488,7 +749,17 @@ export class SceneManager {
     const centered = model.position.clone();
     model.position.copy(this.modelOrigin);
     try {
-      const result = await new GLTFExporter().parseAsync(model, { binary: true, onlyVisible: true });
+      const exporter = new GLTFExporter();
+      const options = { binary: true, onlyVisible: true };
+      let result;
+      try {
+        result = await exporter.parseAsync(model, this.clips.length ? { ...options, animations: this.clips } : options);
+      } catch (error) {
+        if (!this.clips.length) throw error;
+        // Some animations cannot be written back. The model itself is still worth exporting.
+        console.warn('Export with animations failed, exporting without them', error);
+        result = await exporter.parseAsync(model, options);
+      }
       return new Blob([result as ArrayBuffer], { type: 'model/gltf-binary' });
     } finally {
       model.position.copy(centered);
@@ -656,6 +927,73 @@ export class SceneManager {
     listener({ width, height, items });
   }
 
+  /** Works out where every measurement is on the screen, and tells the page only when something moved. */
+  private updateMeasurements(): void {
+    const renderer = this.renderer;
+    const listener = this.measureListener;
+    const model = this.model;
+    if (!renderer || !listener) return;
+
+    if (!model || !this.measureItems.length) {
+      if (this.measureKey !== 'empty') {
+        this.measureKey = 'empty';
+        listener({ width: 0, height: 0, items: [] });
+      }
+      return;
+    }
+
+    const canvas = renderer.domElement;
+    const width = canvas.clientWidth;
+    const height = canvas.clientHeight;
+    if (!width || !height) return;
+
+    const now = performance.now();
+    const recheck = now - this.measureOcclusionAt > OCCLUSION_INTERVAL_MS;
+    if (recheck) this.measureOcclusionAt = now;
+
+    const items: MeasureScreenItem[] = [];
+    for (const { id, a, b } of this.measureItems) {
+      const worldA = model.localToWorld(new Vector3(a.x, a.y, a.z));
+      const worldB = b ? model.localToWorld(new Vector3(b.x, b.y, b.z)) : null;
+      const meters = worldB ? worldA.distanceTo(worldB) : 0;
+
+      const screenA = this.measureScreen(worldA, `${id}:a`, recheck, width, height);
+      const screenB = worldB ? this.measureScreen(worldB, `${id}:b`, recheck, width, height) : null;
+      if (!screenA || (worldB && !screenB)) continue; // an end is behind the camera
+
+      items.push({ id, a: screenA, b: screenB, meters });
+    }
+
+    const key = `${width}x${height}|${items
+      .map(
+        (i) =>
+          `${i.id}:${i.a.x}:${i.a.y}:${i.a.occluded}:${i.b?.x}:${i.b?.y}:${i.b?.occluded}:${i.meters.toFixed(5)}`,
+      )
+      .join('|')}`;
+    if (key === this.measureKey) return;
+    this.measureKey = key;
+    listener({ width, height, items });
+  }
+
+  private measureScreen(
+    world: Vector3,
+    key: string,
+    recheck: boolean,
+    width: number,
+    height: number,
+  ): MeasureScreenPoint | null {
+    if (recheck || !this.measureOcclusion.has(key)) this.measureOcclusion.set(key, this.isBlocked(world));
+
+    const projected = world.clone().project(this.camera);
+    if (projected.z > 1 || projected.z < -1) return null;
+
+    return {
+      x: Math.round((projected.x * 0.5 + 0.5) * width),
+      y: Math.round((-projected.y * 0.5 + 0.5) * height),
+      occluded: this.measureOcclusion.get(key) ?? false,
+    };
+  }
+
   /** True when a solid part of the model is between the camera and this point. */
   private isBlocked(target: Vector3): boolean {
     const model = this.model;
@@ -805,6 +1143,10 @@ export class SceneManager {
   private partName(mesh: Mesh, index: number): string {
     const raw = this.rawPartName(mesh, this.model as Object3D);
     if (!raw) return `Part ${index + 1}`;
+    return this.cleanName(raw);
+  }
+
+  private cleanName(raw: string): string {
     const clean = raw.replace(/[_-]+/g, ' ').replace(/\s+/g, ' ').trim();
     return clean.charAt(0).toUpperCase() + clean.slice(1);
   }
@@ -915,11 +1257,15 @@ export class SceneManager {
   }
 
   private removeModel(): void {
+    this.disposeAnimations();
     this.disposeBeforeModel();
     this.sizeBox.box.makeEmpty();
     this.sizeBox.visible = false;
     this.hotspotIds = []; // hotspots belong to the model that is going away
     this.occlusion.clear();
+    this.measureItems = []; // so do the measurements
+    this.measureOcclusion.clear();
+    this.measureKey = '';
     this.entries.clear();
     this.parts = [];
     this.partKeys = [];
