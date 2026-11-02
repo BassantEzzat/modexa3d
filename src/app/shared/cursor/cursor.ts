@@ -88,14 +88,16 @@ export class Cursor {
   private visible = false;
   private overPart = false;
   private addingPoint = false;
+  private measuring = false;
   private overText = false;
   private elementLabel = '';
 
   constructor() {
-    // The mouse is over a part of the 3D model, "add a point" mode changed, or the language changed
+    // The mouse is over a part of the 3D model, "add a point" / "measure" mode changed, or the language changed
     effect(() => {
       this.overPart = this.store.hoveringPart();
       this.addingPoint = this.store.hotspotMode();
+      this.measuring = this.store.measureMode();
       this.i18n.lang();
       if (this.active) this.refresh();
     });
@@ -169,7 +171,9 @@ export class Cursor {
     const label = this.label().nativeElement;
 
     let text = this.elementLabel;
-    if (this.overPart) text = this.i18n.t(this.addingPoint ? 'cursor.addPoint' : 'cursor.edit');
+    if (this.overPart) {
+      text = this.i18n.t(this.measuring ? 'cursor.measure' : this.addingPoint ? 'cursor.addPoint' : 'cursor.edit');
+    }
 
     ring.classList.toggle('has-label', !!text);
     if (text) label.textContent = text;

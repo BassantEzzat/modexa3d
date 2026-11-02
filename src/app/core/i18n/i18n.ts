@@ -28,12 +28,14 @@ const EN = {
   'viewer.compare': 'Compare before and after',
   'viewer.dimensions': 'Show dimensions',
   'viewer.hotspot': 'Add a point with a note',
+  'viewer.measure': 'Measure a distance',
   'viewer.uploadModel': 'Upload model',
   'viewer.hint': 'Drag to rotate · Scroll or pinch to zoom · Tap a part to edit it',
   'viewer.canvas': 'Interactive 3D model viewer',
   'viewer.loading': 'Loading model',
   'cursor.edit': 'Edit',
   'cursor.addPoint': 'Add',
+  'cursor.measure': 'Measure',
 
   // Before / after
   'compare.before': 'Before',
@@ -58,6 +60,22 @@ const EN = {
   'hotspot.placeholder': 'Write a note…',
   'hotspot.delete': 'Delete',
   'hotspot.deleteAria': 'Delete point {n}',
+
+  // Measuring
+  'measure.hint': 'Tap two points on the model to measure the distance · Esc to cancel',
+  'measure.second': 'Now tap the second point',
+  'measure.title': 'Measurements',
+  'measure.clear': 'Clear all',
+
+  // Animation bar
+  'anim.bar': 'Animation controls',
+  'anim.play': 'Play',
+  'anim.pause': 'Pause',
+  'anim.clip': 'Animation',
+  'anim.time': 'Animation position',
+  'anim.speed': 'Speed',
+  'anim.loop': 'Repeat',
+  'anim.unnamed': 'Animation {n}',
 
   // Screenshot menu
   'shot.options': 'Screenshot options',
@@ -127,6 +145,7 @@ const EN = {
   // Categories of the sample models
   'cat.Furniture': 'Furniture',
   'cat.Accessories': 'Accessories',
+  'cat.Vehicles': 'Vehicles',
 
   // Messages
   'msg.saveFail': "Couldn't save the design on this device. Storage may be full or blocked.",
@@ -136,6 +155,7 @@ const EN = {
   'msg.exported': 'Model exported as .glb',
   'msg.exportFail': "Couldn't export the model.",
   'msg.hotspotLimit': 'You reached the limit of {n} points.',
+  'msg.measureLimit': 'You reached the limit of {n} measurements.',
   'msg.shotSaved': 'Screenshot saved',
   'msg.shotFail': "Couldn't save the screenshot.",
   'msg.recording': 'Recording one full turn…',
@@ -172,12 +192,14 @@ const AR: Record<TextKey, string> = {
   'viewer.compare': 'مقارنة قبل وبعد',
   'viewer.dimensions': 'عرض الأبعاد',
   'viewer.hotspot': 'إضافة نقطة بملاحظة',
+  'viewer.measure': 'قياس مسافة',
   'viewer.uploadModel': 'رفع مجسم',
   'viewer.hint': 'اسحب للتدوير · مرّر أو اقرص للتكبير · المس جزءًا لتعديله',
   'viewer.canvas': 'عارض المجسمات ثلاثية الأبعاد',
   'viewer.loading': 'جارٍ تحميل المجسم',
   'cursor.edit': 'تعديل',
   'cursor.addPoint': 'إضافة',
+  'cursor.measure': 'قياس',
 
   'compare.before': 'قبل',
   'compare.after': 'بعد',
@@ -199,6 +221,20 @@ const AR: Record<TextKey, string> = {
   'hotspot.placeholder': 'اكتب ملاحظة…',
   'hotspot.delete': 'حذف',
   'hotspot.deleteAria': 'حذف النقطة {n}',
+
+  'measure.hint': 'المس نقطتين على المجسم لقياس المسافة بينهما · Esc للإلغاء',
+  'measure.second': 'والآن المس النقطة الثانية',
+  'measure.title': 'القياسات',
+  'measure.clear': 'مسح الكل',
+
+  'anim.bar': 'التحكم في الحركة',
+  'anim.play': 'تشغيل',
+  'anim.pause': 'إيقاف مؤقت',
+  'anim.clip': 'الحركة',
+  'anim.time': 'موضع الحركة',
+  'anim.speed': 'السرعة',
+  'anim.loop': 'تكرار',
+  'anim.unnamed': 'حركة {n}',
 
   'shot.options': 'خيارات لقطة الشاشة',
   'shot.quality': 'الجودة',
@@ -262,6 +298,7 @@ const AR: Record<TextKey, string> = {
 
   'cat.Furniture': 'أثاث',
   'cat.Accessories': 'إكسسوارات',
+  'cat.Vehicles': 'مركبات',
 
   'msg.saveFail': 'تعذّر حفظ التصميم على هذا الجهاز. قد تكون المساحة ممتلئة أو التخزين محظورًا.',
   'msg.designMissing': 'ملف هذا التصميم لم يعد محفوظًا على هذا الجهاز.',
@@ -270,6 +307,7 @@ const AR: Record<TextKey, string> = {
   'msg.exported': 'تم تصدير المجسم كملف GLB',
   'msg.exportFail': 'تعذّر تصدير المجسم.',
   'msg.hotspotLimit': 'وصلت إلى الحد الأقصى وهو {n} نقطة.',
+  'msg.measureLimit': 'وصلت إلى الحد الأقصى وهو {n} قياسات.',
   'msg.shotSaved': 'تم حفظ اللقطة',
   'msg.shotFail': 'تعذّر حفظ اللقطة.',
   'msg.recording': 'جارٍ تسجيل دورة كاملة…',

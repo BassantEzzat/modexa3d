@@ -455,6 +455,168 @@
   }
 }
 
+// ---- Measurements ----
+// Same box as the canvas. Points and lines are placed by pixels, so it is always left to right.
+.measure {
+  position: absolute;
+  inset: 0 0 var(--sheet-offset) 0;
+  z-index: 2;
+  direction: ltr;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+.measure-svg {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+}
+
+.m-line-bg {
+  stroke: rgba(var(--overlay-rgb), 0.7);
+  stroke-width: 4;
+  stroke-linecap: round;
+}
+
+.m-line {
+  stroke: var(--accent);
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-dasharray: 6 5;
+}
+
+.m-dot {
+  fill: var(--accent);
+  stroke: var(--bg);
+  stroke-width: 2;
+}
+
+// Behind the model, seen from where the camera is now
+.m-line-bg,
+.m-line,
+.m-dot,
+.m-label {
+  transition: opacity 0.2s ease;
+
+  &.dim {
+    opacity: 0.35;
+  }
+}
+
+g.dim {
+  opacity: 0.35;
+}
+
+.m-label {
+  position: absolute;
+  transform: translate(-50%, -50%);
+  padding: 0.15rem 0.6rem;
+  border: 1px solid var(--accent);
+  border-radius: 999px;
+  background: rgba(var(--panel-rgb), 0.92);
+  backdrop-filter: blur(8px);
+  color: var(--text);
+  font-size: 0.78rem;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.measure-panel {
+  position: absolute;
+  top: 6.25rem;
+  inset-inline-start: 0.75rem;
+  z-index: 3;
+  display: grid;
+  gap: 0.6rem;
+  min-width: 176px;
+  padding: 0.75rem 0.9rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: rgba(var(--panel-rgb), 0.88);
+  backdrop-filter: blur(12px);
+
+  // The dimensions panel is open too: sit below it
+  &.below {
+    top: 15.5rem;
+  }
+}
+
+.small-btn {
+  min-height: 32px;
+  padding: 0 0.8rem;
+  font-size: 0.8rem;
+}
+
+// ---- Animation bar ----
+.anim {
+  position: absolute;
+  left: 50%;
+  bottom: calc(var(--sheet-offset) + 8rem);
+  transform: translateX(-50%);
+  z-index: 3;
+  width: min(560px, calc(100% - 1.5rem));
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.5rem 0.65rem;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: rgba(var(--panel-rgb), 0.88);
+  backdrop-filter: blur(12px);
+
+  .btn.icon {
+    flex: none;
+    width: 36px;
+    height: 36px;
+    min-height: 0;
+  }
+
+  // The bar wraps on phones, so it is a rounded card there instead of a pill
+  @media (max-width: 480px) {
+    border-radius: 18px;
+  }
+}
+
+.anim-range {
+  flex: 1 1 120px;
+  min-width: 0;
+  height: 28px; // comfortable touch target
+  accent-color: var(--accent);
+}
+
+.anim-time {
+  flex: none;
+  color: var(--muted);
+  font-size: 0.75rem;
+  font-variant-numeric: tabular-nums;
+
+  @media (max-width: 480px) {
+    display: none;
+  }
+}
+
+.anim-select {
+  flex: none;
+  max-width: 130px;
+  min-height: 34px;
+  padding: 0 0.6rem;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--surface-2);
+  color: var(--text);
+  font: inherit;
+  font-size: 0.8rem;
+
+  &:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 2px;
+  }
+}
+
 // ---- Screenshot menu ----
 .shot-menu {
   position: absolute;

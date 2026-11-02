@@ -10,7 +10,10 @@ import { Cursor } from './shared/cursor/cursor';
   imports: [Topbar, Viewer, Customizer, Cursor],
   templateUrl: './app.html',
   styleUrl: './app.scss',
-  host: { '(document:keydown)': 'onKeydown($event)' },
+  host: {
+    '(document:keydown)': 'onKeydown($event)',
+    '(document:pointerdown)': 'onOutsidePointer($event)',
+  },
 })
 export class App {
   private readonly store = inject(ModelStore);
@@ -18,14 +21,23 @@ export class App {
   readonly panelOpen = signal(false);
 
   constructor() {
-    // Tapping a part of the model opens the panel (on phones it starts collapsed)
+    // Tapping a part of the model opens the panel (on phones it starts collapsed).
+    // It listens to the tap itself, so tapping the same part again opens it too.
     effect(() => {
-      if (this.store.selectedId()) this.panelOpen.set(true);
+      if (this.store.pickTick() > 0) this.panelOpen.set(true);
     });
   }
 
   togglePanel(): void {
     this.panelOpen.update((open) => !open);
+  }
+
+  /** Pressing anywhere outside the customize panel closes it (on phones, where it slides up as a sheet). */
+  protected onOutsidePointer(event: PointerEvent): void {
+    if (!this.panelOpen()) return;
+    const target = event.target as Element | null;
+    if (target?.closest('app-customizer')) return;
+    this.panelOpen.set(false);
   }
 
   /** Ctrl/Cmd+Z = undo, Ctrl/Cmd+Shift+Z or Ctrl/Cmd+Y = redo */

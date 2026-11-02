@@ -2,6 +2,7 @@ import { Component, DestroyRef, ElementRef, afterNextRender, effect, inject, sig
 import { LENGTH_UNITS, ModelStore } from '../../core/state/model-store';
 import { ModelGallery } from './model-gallery/model-gallery';
 import { I18n } from '../../core/i18n/i18n';
+import { AnimationInfo } from '../../core/three/scene-manager';
 
 const BUBBLE_WIDTH = 200; // must match the note bubble in viewer.scss
 const BUBBLE_MARGIN = 8;
@@ -26,6 +27,7 @@ export class Viewer {
   protected readonly store = inject(ModelStore);
   protected readonly i18n = inject(I18n);
   protected readonly units = LENGTH_UNITS;
+  protected readonly speeds = [0.25, 0.5, 1, 1.5, 2];
 
   // dragenter/dragleave also fire for child elements, so we count them
   private dragDepth = 0;
@@ -79,6 +81,8 @@ export class Viewer {
 
     if (this.store.hotspotMode()) {
       this.store.addHotspotAt(event.clientX, event.clientY);
+    } else if (this.store.measureMode()) {
+      this.store.addMeasurePointAt(event.clientX, event.clientY);
     } else {
       this.store.selectHotspot(null); // a tap outside closes the open note
       this.store.pickAt(event.clientX, event.clientY);
@@ -89,6 +93,7 @@ export class Viewer {
 
   protected onEscape(): void {
     if (this.store.hotspotMode()) this.store.hotspotMode.set(false);
+    if (this.store.measureMode()) this.store.stopMeasuring();
     this.store.selectHotspot(null);
   }
 
@@ -104,6 +109,15 @@ export class Viewer {
     const wanted = x - BUBBLE_WIDTH / 2;
     const left = Math.min(Math.max(wanted, BUBBLE_MARGIN), Math.max(BUBBLE_MARGIN, width - BUBBLE_WIDTH - BUBBLE_MARGIN));
     return left - wanted;
+  }
+
+  /** The line at the bottom of the viewer: what a tap on the model does right now. */
+  protected hintText(): string {
+    if (this.store.hotspotMode()) return this.i18n.t('hotspot.hint');
+    if (this.store.measureMode()) {
+      return this.i18n.t(this.store.measurePending() ? 'measure.second' : 'measure.hint');
+    }
+    return this.i18n.t('viewer.hint');
   }
 
   // ---- Before / after divider ---------------------------------------------
@@ -145,6 +159,25 @@ export class Viewer {
       meters * unit.perMeter,
     );
     return `${number} ${this.i18n.t(unit.label)}`;
+  }
+
+  // ---- Animation bar ------------------------------------------------------
+
+  protected onSeek(event: Event): void {
+    this.store.seekAnimation(Number((event.target as HTMLInputElement).value));
+  }
+
+  protected onClip(event: Event): void {
+    this.store.selectAnimation(Number((event.target as HTMLSelectElement).value));
+  }
+
+  protected onSpeed(event: Event): void {
+    this.store.setAnimationSpeed(Number((event.target as HTMLSelectElement).value));
+  }
+
+  /** The name of an animation, or "Animation 2" when the file did not name it. */
+  protected clipName(clip: AnimationInfo): string {
+    return clip.name || this.i18n.t('anim.unnamed', { n: clip.index + 1 });
   }
 
   // ---- Drag & drop of files -----------------------------------------------
