@@ -919,7 +919,42 @@ export class ModelStore {
   private readDesigns(): SavedDesign[] {
     try {
       const raw = localStorage.getItem(DESIGNS_KEY);
-      const data = raw ? JSON.parse(raw) : [];
+      return this.sanitizeDesigns(raw ? JSON.parse(raw) : []);
+    } catch {
+      return [];
+    }
+  }
+
+  /** Designs that come from the cloud (as JSON text). Anything that doesn't look right is dropped. */
+  parseDesigns(json: unknown): SavedDesign[] {
+    if (typeof json !== 'string') return [];
+    try {
+      return this.sanitizeDesigns(JSON.parse(json));
+    } catch {
+      return [];
+    }
+  }
+
+  /** Used by the cloud sync: replaces the saved designs and keeps the copy on this device in step. */
+  replaceDesigns(list: SavedDesign[]): void {
+    this.designs.set(list.slice(0, MAX_DESIGNS));
+    this.persistDesigns();
+    void this.cleanupBlobs();
+  }
+
+  /** Used by the cloud sync: replaces the list of recent colors. */
+  setRecentColors(list: string[]): void {
+    const colors = list.filter((c) => /^#[0-9a-f]{6}$/i.test(c)).map((c) => c.toLowerCase()).slice(0, MAX_RECENT);
+    this.recentColors.set(colors);
+    try {
+      localStorage.setItem(RECENT_KEY, JSON.stringify(colors));
+    } catch {
+      // storage can be blocked, the list still works until the page closes
+    }
+  }
+
+  private sanitizeDesigns(data: unknown): SavedDesign[] {
+    try {
       if (!Array.isArray(data)) return [];
 
       return data
