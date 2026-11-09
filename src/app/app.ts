@@ -4,10 +4,12 @@ import { Topbar } from './shared/topbar/topbar';
 import { Viewer } from './features/viewer/viewer';
 import { Customizer } from './features/customizer/customizer';
 import { Cursor } from './shared/cursor/cursor';
+import { Gate } from './shared/gate/gate';
+import { CloudSync } from './core/sync/cloud-sync';
 
 @Component({
   selector: 'app-root',
-  imports: [Topbar, Viewer, Customizer, Cursor],
+  imports: [Topbar, Viewer, Customizer, Cursor, Gate],
   templateUrl: './app.html',
   styleUrl: './app.scss',
   host: {
@@ -21,6 +23,8 @@ export class App {
   readonly panelOpen = signal(false);
 
   constructor() {
+    inject(CloudSync); // starts keeping the saved designs in step with the cloud once someone signs in
+
     // Tapping a part of the model opens the panel (on phones it starts collapsed).
     // It listens to the tap itself, so tapping the same part again opens it too.
     effect(() => {
