@@ -178,7 +178,7 @@ const EN = {
   'msg.videoSaved': 'Video saved',
   'msg.recordFail': "Couldn't record the video. Your browser may not support recording.",
   'msg.onlyGlb': 'Only .glb files are supported for now.',
-  'msg.tooLarge': 'This file is larger than 50 MB. Try a smaller model.',
+  'msg.tooLarge': 'This file is larger than {n} MB. Try a smaller model.',
   'msg.invalidGlb': "This doesn't look like a valid .glb file.",
   'msg.loadFail': "Couldn't load this model. Make sure it's a valid .glb file.",
 } as const;
@@ -345,7 +345,7 @@ const AR: Record<TextKey, string> = {
   'msg.videoSaved': 'تم حفظ الفيديو',
   'msg.recordFail': 'تعذّر تسجيل الفيديو. قد لا يدعم متصفحك التسجيل.',
   'msg.onlyGlb': 'الملفات المدعومة حاليًا هي GLB فقط.',
-  'msg.tooLarge': 'حجم الملف أكبر من 50 ميجابايت. جرّب مجسمًا أصغر.',
+  'msg.tooLarge': 'حجم الملف أكبر من {n} ميجابايت. جرّب مجسمًا أصغر.',
   'msg.invalidGlb': 'هذا الملف لا يبدو ملف GLB صالحًا.',
   'msg.loadFail': 'تعذّر تحميل هذا المجسم. تأكد أنه ملف GLB صالح.',
 };

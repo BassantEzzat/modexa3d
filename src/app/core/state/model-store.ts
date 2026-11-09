@@ -18,7 +18,7 @@ import {
   SceneManager,
 } from '../three/scene-manager';
 
-const MAX_FILE_SIZE = 50 * 1024 * 1024; // 50 MB
+const MAX_FILE_SIZE = 500 * 1024 * 1024; // 500 MB
 const MAX_HISTORY = 100;
 const MAX_DESIGNS = 30;
 const MAX_HOTSPOTS = 30;
@@ -1185,7 +1185,7 @@ export class ModelStore {
       return this.i18n.t('msg.onlyGlb');
     }
     if (file.size > MAX_FILE_SIZE) {
-      return this.i18n.t('msg.tooLarge');
+      return this.i18n.t('msg.tooLarge', { n: Math.round(MAX_FILE_SIZE / (1024 * 1024)) });
     }
     // Every real GLB file starts with the bytes "glTF"
     const magic = await file.slice(0, 4).text();
