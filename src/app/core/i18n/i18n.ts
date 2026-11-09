@@ -86,13 +86,13 @@ const EN = {
   'shot.transparent': 'Transparent background',
   'shot.save': 'Save PNG',
 
-  // Drop zone
+  // Drop zone ("Drag a" + GLB + the text below = "Drag a GLB or FBX file here, …")
   'drop.title': 'Explore any 3D model',
   'drop.before': 'Drag a',
-  'drop.after': 'file here, or pick a sample to start.',
+  'drop.after': 'or FBX file here, or pick a sample to start.',
   'drop.upload': 'Upload model',
   'drop.sample': 'or try a sample',
-  'drop.overlay': 'Drop your .glb file to load it',
+  'drop.overlay': 'Drop your .glb or .fbx file to load it',
 
   // Customizer
   'cz.customize': 'Customize',
@@ -177,10 +177,12 @@ const EN = {
   'msg.recording': 'Recording one full turn…',
   'msg.videoSaved': 'Video saved',
   'msg.recordFail': "Couldn't record the video. Your browser may not support recording.",
-  'msg.onlyGlb': 'Only .glb files are supported for now.',
+  'msg.onlyGlb': 'Only .glb and .fbx files are supported for now.',
   'msg.tooLarge': 'This file is larger than {n} MB. Try a smaller model.',
-  'msg.invalidGlb': "This doesn't look like a valid .glb file.",
-  'msg.loadFail': "Couldn't load this model. Make sure it's a valid .glb file.",
+  'msg.invalidGlb': "This doesn't look like a valid .glb or .fbx file.",
+  'msg.loadFail': "Couldn't load this model. Make sure it's a valid .glb or .fbx file.",
+  'msg.fbxTextures':
+    "Some textures of this FBX file couldn't be loaded because they are stored in separate files. Use an FBX with embedded textures, or a GLB.",
 } as const;
 
 export type TextKey = keyof typeof EN;
@@ -262,10 +264,10 @@ const AR: Record<TextKey, string> = {
 
   'drop.title': 'استكشف أي مجسم ثلاثي الأبعاد',
   'drop.before': 'اسحب ملف',
-  'drop.after': 'هنا، أو اختر مجسمًا جاهزًا للبدء.',
+  'drop.after': 'أو FBX هنا، أو اختر مجسمًا جاهزًا للبدء.',
   'drop.upload': 'رفع مجسم',
   'drop.sample': 'أو جرّب مجسمًا جاهزًا',
-  'drop.overlay': 'أفلت ملف GLB لتحميله',
+  'drop.overlay': 'أفلت ملف GLB أو FBX لتحميله',
 
   'cz.customize': 'التخصيص',
   'cz.materials': 'الخامات',
@@ -344,10 +346,12 @@ const AR: Record<TextKey, string> = {
   'msg.recording': 'جارٍ تسجيل دورة كاملة…',
   'msg.videoSaved': 'تم حفظ الفيديو',
   'msg.recordFail': 'تعذّر تسجيل الفيديو. قد لا يدعم متصفحك التسجيل.',
-  'msg.onlyGlb': 'الملفات المدعومة حاليًا هي GLB فقط.',
+  'msg.onlyGlb': 'الملفات المدعومة حاليًا هي GLB وFBX فقط.',
   'msg.tooLarge': 'حجم الملف أكبر من {n} ميجابايت. جرّب مجسمًا أصغر.',
-  'msg.invalidGlb': 'هذا الملف لا يبدو ملف GLB صالحًا.',
-  'msg.loadFail': 'تعذّر تحميل هذا المجسم. تأكد أنه ملف GLB صالح.',
+  'msg.invalidGlb': 'هذا الملف لا يبدو ملف GLB أو FBX صالحًا.',
+  'msg.loadFail': 'تعذّر تحميل هذا المجسم. تأكد أنه ملف GLB أو FBX صالح.',
+  'msg.fbxTextures':
+    'تعذّر تحميل بعض خامات ملف FBX لأنها محفوظة في ملفات منفصلة. استخدم ملف FBX بتكستشر مضمّن، أو ملف GLB.',
 };
 
 const DICTIONARIES: Record<Lang, Record<string, string>> = { en: EN, ar: AR };
