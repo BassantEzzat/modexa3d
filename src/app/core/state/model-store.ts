@@ -13,18 +13,27 @@ import {
   MaterialChanges,
   MaterialInfo,
   MeasureFrame,
+  ModelFormat,
   ModelSize,
   PartInfo,
   SceneManager,
 } from '../three/scene-manager';
 
-const MAX_FILE_SIZE = 50 * 1024 * 1024; // 50 MB
+const MAX_FILE_SIZE = 500 * 1024 * 1024; // 500 MB
 const MAX_HISTORY = 100;
 const MAX_DESIGNS = 30;
 const MAX_HOTSPOTS = 30;
 const MAX_MEASUREMENTS = 10;
 const MAX_NOTE = 140; // characters in one note
 const RECORDING_MS = 6000;
+
+/** The format of a file, from its name. Null for anything the viewer cannot open. */
+function formatOf(fileName: string): ModelFormat | null {
+  const name = fileName.toLowerCase();
+  if (name.endsWith('.glb')) return 'glb';
+  if (name.endsWith('.fbx')) return 'fbx';
+  return null;
+}
 
 export type MaterialSettings = Required<MaterialChanges>;
 
@@ -292,6 +301,8 @@ export class ModelStore {
       // The size of a moving model changes with its pose
       if (state && this.showDimensions()) this.refreshDimensions();
     });
+    // An FBX whose pictures live in separate files: the model still opens, just without them
+    this.scene.setTextureErrorListener(() => this.showInfo(this.i18n.t('msg.fbxTextures'), 9000));
   }
 
   detach(): void {
@@ -316,7 +327,7 @@ export class ModelStore {
   openFilePicker(): void {
     const input = document.createElement('input');
     input.type = 'file';
-    input.accept = '.glb';
+    input.accept = '.glb,.fbx';
     input.style.display = 'none';
 
     input.addEventListener('change', () => {
@@ -341,14 +352,14 @@ export class ModelStore {
     await this.openBlob(file, file.name, null);
   }
 
-  /** Loads a file from memory (fresh upload) or from IndexedDB (a saved design). */
+  /** Loads a file from memory (fresh upload) or from IndexedDB (a saved design). The name tells the format. */
   private async openBlob(blob: Blob, name: string, key: string | null): Promise<boolean> {
     const previousId = this.activeId();
     this.revokeObjectUrl();
     this.objectUrl = URL.createObjectURL(blob);
     this.activeId.set(null);
 
-    const ok = await this.loadUrl(this.objectUrl);
+    const ok = await this.loadUrl(this.objectUrl, formatOf(name) ?? 'glb');
     if (ok) this.upload.set({ blob, name, key });
     else this.activeId.set(previousId);
     return ok;
@@ -1025,7 +1036,7 @@ export class ModelStore {
     }
   }
 
-  /** Downloads the model with the current colors and materials as a new .glb. Works for samples and uploads. */
+  /** Downloads the model with the current colors and materials as a new .glb. Works for samples and uploads (an FBX comes out as a GLB). */
   async exportModel(): Promise<void> {
     if (!this.hasModel() || this.exporting()) return;
 
@@ -1061,10 +1072,10 @@ export class ModelStore {
     }
   }
 
-  /** The uploaded file's name without ".glb", or the sample's id. */
+  /** The uploaded file's name without ".glb" / ".fbx", or the sample's id. */
   private exportBaseName(): string {
     const uploaded = this.upload()?.name;
-    if (this.activeId() === null && uploaded) return uploaded.replace(/\.glb$/i, '') || 'model';
+    if (this.activeId() === null && uploaded) return uploaded.replace(/\.(glb|fbx)$/i, '') || 'model';
     return this.activeId() ?? 'model';
   }
 
@@ -1181,28 +1192,31 @@ export class ModelStore {
   }
 
   private async validate(file: File): Promise<string | null> {
-    if (!file.name.toLowerCase().endsWith('.glb')) {
+    const format = formatOf(file.name);
+    if (!format) {
       return this.i18n.t('msg.onlyGlb');
     }
     if (file.size > MAX_FILE_SIZE) {
-      return this.i18n.t('msg.tooLarge');
+      return this.i18n.t('msg.tooLarge', { n: Math.round(MAX_FILE_SIZE / (1024 * 1024)) });
     }
-    // Every real GLB file starts with the bytes "glTF"
-    const magic = await file.slice(0, 4).text();
-    if (magic !== 'glTF') {
+
+    // A real GLB starts with the bytes "glTF". An FBX (binary or text) mentions "FBX" in its first bytes.
+    const head = await file.slice(0, 200).text();
+    const valid = format === 'glb' ? head.startsWith('glTF') : head.includes('FBX');
+    if (!valid) {
       return this.i18n.t('msg.invalidGlb');
     }
     return null;
   }
 
   /** Returns false only when this load failed. */
-  private async loadUrl(url: string): Promise<boolean> {
+  private async loadUrl(url: string, format: ModelFormat = 'glb'): Promise<boolean> {
     const token = ++this.loadToken;
     this.loading.set(true);
     this.errorMessage.set('');
 
     try {
-      const applied = await this.scene.load(url);
+      const applied = await this.scene.load(url, format);
       if (applied) {
         this.materials.set(this.scene.getMaterials());
         this.parts.set(this.scene.getParts());
@@ -1245,11 +1259,11 @@ export class ModelStore {
     }, 6000);
   }
 
-  private showInfo(message: string): void {
+  private showInfo(message: string, durationMs = 2500): void {
     this.infoMessage.set(message);
     setTimeout(() => {
       if (this.infoMessage() === message) this.infoMessage.set('');
-    }, 2500);
+    }, durationMs);
   }
 
   private revokeObjectUrl(): void {

@@ -9,6 +9,7 @@ import {
   Color,
   DirectionalLight,
   LineBasicMaterial,
+  LoadingManager,
   LoopOnce,
   LoopRepeat,
   Material,
@@ -29,10 +30,14 @@ import {
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { GLTFExporter } from 'three/addons/exporters/GLTFExporter.js';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+import type { FBXLoader } from 'three/addons/loaders/FBXLoader.js'; // the loader itself is loaded on demand
 import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
 import { clone as cloneObject } from 'three/addons/utils/SkeletonUtils.js';
 
 export type LightingPreset = 'studio' | 'front' | 'around' | 'sunset';
+
+/** The 3D file formats the viewer can open. */
+export type ModelFormat = 'glb' | 'fbx';
 
 export interface MaterialInfo {
   readonly id: string;
@@ -146,10 +151,21 @@ interface MeasureItem {
   b: HotspotPoint | null;
 }
 
+/** What a loader gives back: the model and the animations that came inside the file. */
+interface LoadedModel {
+  root: Object3D;
+  animations: AnimationClip[];
+}
+
 const MAX_CAPTURE_SIZE = 4096; // longest side of a screenshot, in pixels
 const BACKGROUND = '#0e0c0b';
 const OCCLUSION_INTERVAL_MS = 120; // checking what hides a hotspot is costly, so not on every frame
 const MAX_ANIMATION_STEP = 0.1; // seconds. A long pause (hidden tab) must not make the animation jump
+
+// Most FBX files are written in centimeters. A model larger than this many units is taken as centimeters
+// and scaled by 0.01, so its size in the dimensions panel comes out in meters like a GLB.
+const FBX_CM_THRESHOLD = 10;
+const FBX_CM_SCALE = 0.01;
 
 // The edited model lives on layer 0, the untouched copy ("before") on layer 1
 const AFTER_LAYER = 0;
@@ -175,6 +191,9 @@ export class SceneManager {
   private readonly scene = new Scene();
   private readonly camera = new PerspectiveCamera(40, 1, 0.01, 1000);
   private readonly loader = new GLTFLoader();
+  private fbxLoader: FBXLoader | null = null;
+  private fbxTexturesFailed = false;
+  private textureErrorListener?: () => void;
   private readonly keyLight = new DirectionalLight(0xffffff, 1.5);
   private readonly entries = new Map<string, MaterialEntry>();
   private readonly clock = new Clock();
@@ -296,33 +315,120 @@ export class SceneManager {
   }
 
   /**
-   * Loads a .glb from a URL (or blob URL), replaces the old model and frames it.
+   * Loads a .glb or .fbx from a URL (or blob URL), replaces the old model and frames it.
    * Returns false when a newer load request superseded this one.
    */
-  async load(url: string): Promise<boolean> {
+  async load(url: string, format: ModelFormat = 'glb'): Promise<boolean> {
     if (!this.renderer) throw new Error('SceneManager is not initialised');
 
     const requestId = ++this.loadId;
-    const gltf = await this.loader.loadAsync(url);
+    const loaded = format === 'fbx' ? await this.loadFbx(url) : await this.loadGlb(url);
 
     if (requestId !== this.loadId) {
-      this.disposeObject(gltf.scene);
+      this.disposeObject(loaded.root);
       return false;
     }
 
     this.removeModel();
-    this.model = gltf.scene;
-    this.scene.add(gltf.scene);
-    this.collectMaterials(gltf.scene);
-    this.collectParts(gltf.scene);
-    this.frameModel(gltf.scene);
+    this.model = loaded.root;
+    this.scene.add(loaded.root);
+    this.collectMaterials(loaded.root);
+    this.collectParts(loaded.root);
+    this.frameModel(loaded.root);
 
     // The "before" copy is taken now, so it is the file exactly as it came
-    this.beforeModel = this.makeBeforeModel(gltf.scene);
+    this.beforeModel = this.makeBeforeModel(loaded.root);
     this.scene.add(this.beforeModel);
 
-    this.setupAnimations(gltf.animations);
+    this.setupAnimations(loaded.animations);
     return true;
+  }
+
+  /** Called (once per file) when a texture of an FBX could not be loaded, e.g. it lives in a separate file. */
+  setTextureErrorListener(listener: () => void): void {
+    this.textureErrorListener = listener;
+  }
+
+  private async loadGlb(url: string): Promise<LoadedModel> {
+    const gltf = await this.loader.loadAsync(url);
+    return { root: gltf.scene, animations: gltf.animations };
+  }
+
+  /** FBX files come with Phong / Lambert materials and usually in centimeters. Both are fixed here. */
+  private async loadFbx(url: string): Promise<LoadedModel> {
+    if (!this.fbxLoader) {
+      // Loaded on demand, so visitors who never open an FBX do not download it
+      const { FBXLoader } = await import('three/addons/loaders/FBXLoader.js');
+      const manager = new LoadingManager(undefined, undefined, () => {
+        if (this.fbxTexturesFailed) return;
+        this.fbxTexturesFailed = true;
+        this.textureErrorListener?.();
+      });
+      this.fbxLoader = new FBXLoader(manager);
+    }
+
+    this.fbxTexturesFailed = false;
+    const group = await this.fbxLoader.loadAsync(url);
+    this.convertMaterials(group);
+    this.normalizeUnits(group);
+    return { root: group, animations: group.animations ?? [] };
+  }
+
+  /**
+   * The customizer works on MeshStandardMaterial (the glTF material). FBX gives Phong or Lambert,
+   * so each one is replaced by a Standard material with the same color, textures and transparency.
+   * A material shared by several meshes stays shared.
+   */
+  private convertMaterials(root: Object3D): void {
+    const converted = new Map<Material, MeshStandardMaterial>();
+
+    const convert = (material: Material): Material => {
+      const old = material as any;
+      if (!(old.isMeshPhongMaterial || old.isMeshLambertMaterial || old.isMeshBasicMaterial)) return material;
+
+      let standard = converted.get(material);
+      if (!standard) {
+        standard = new MeshStandardMaterial();
+        standard.name = old.name;
+        if (old.color) standard.color.copy(old.color);
+        if (old.emissive) {
+          standard.emissive.copy(old.emissive);
+          standard.emissiveIntensity = old.emissiveIntensity ?? 1;
+        }
+        standard.map = old.map ?? null;
+        standard.normalMap = old.normalMap ?? null;
+        standard.bumpMap = old.bumpMap ?? null;
+        standard.bumpScale = old.bumpScale ?? 1;
+        standard.emissiveMap = old.emissiveMap ?? null;
+        standard.aoMap = old.aoMap ?? null;
+        standard.alphaMap = old.alphaMap ?? null;
+        standard.opacity = old.opacity ?? 1;
+        standard.transparent = old.transparent ?? false;
+        standard.side = old.side;
+        standard.vertexColors = old.vertexColors ?? false;
+        standard.metalness = 0;
+        // Phong's "shininess" is the closest thing to roughness: shinier = smoother
+        standard.roughness = old.isMeshPhongMaterial ? 1 - Math.min(1, (old.shininess ?? 30) / 100) : 0.8;
+        converted.set(material, standard);
+      }
+      return standard;
+    };
+
+    root.traverse((child) => {
+      const mesh = child as Mesh;
+      if (!mesh.isMesh) return;
+      mesh.material = Array.isArray(mesh.material) ? mesh.material.map(convert) : convert(mesh.material);
+    });
+
+    // The textures live on in the new materials, only the old shells are freed
+    converted.forEach((_, original) => original.dispose());
+  }
+
+  /** An FBX that is far larger than a normal model in meters is taken as centimeters. */
+  private normalizeUnits(root: Object3D): void {
+    const size = new Box3().setFromObject(root).getSize(new Vector3());
+    const largest = Math.max(size.x, size.y, size.z);
+    if (largest > FBX_CM_THRESHOLD) root.scale.multiplyScalar(FBX_CM_SCALE);
   }
 
   setLighting(preset: LightingPreset): void {
@@ -740,6 +846,7 @@ export class SceneManager {
    * Writes the model as it looks now (colors, materials, hidden parts left out) to a .glb.
    * Animations of the file are kept in it. The lights, the background, the hotspots and the
    * measurements are not part of a model file, so they are not saved in it.
+   * For an FBX this is also a conversion: the result is a GLB.
    */
   async exportGlb(): Promise<Blob> {
     const model = this.model;
